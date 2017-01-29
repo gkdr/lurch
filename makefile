@@ -18,9 +18,8 @@ LFLAGS=-lmxml -pthread -ldl -lm -lcrypto -lglib-2.0 -lxml2 -L/usr/lib/purple-2/ 
 
 export PLUGIN_LIBS= ../../../$(LOMEMO_BUILD)/libomemo.la ../../../$(AXC_BUILD)/libaxc.la  $(LFLAGS)
 export PLUGIN_CFLAGS=-I/usr/include/libxml2
-	
-axc_build:
-	mkdir -p $(AXC_BUILD)
+
+all: lurch
 
 .PHONY: libomemo
 libomemo: $(LOMEMO_DIR)
