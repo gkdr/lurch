@@ -31,5 +31,10 @@ More information can be found by typing `/lurch help` in any conversation window
 ## Caveats
 [OMEMO's now official XEP](https://xmpp.org/extensions/xep-0384.html) changed the used double ratchet implementation from Axolotl to Olm (which is also an amphibian, we are all very creative with names it seems). I noticed this way too late and am still using libaxolotl. No, not even Signal - I did not update the dependency in axc for reasons outlined in its own readme.
 
+libpurple does not have support for Carbons or MAM, both used to deliver functionality that the OMEMO protocol can do in theory, which is messages to multiple devices and catchup with messages that were sent while a device was offline.
+It should not be hard to fix but should be rather done on libpurple's side.
+
 For this reason, lurch uses its own namespace and is not interoperable with any other OMEMO applications at this moment.
 If there is enough interest, I will fix this at some point.
+
+
