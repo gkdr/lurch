@@ -8,11 +8,11 @@ In German, an Axolotl is a type of Lurch. This plugin brings Axolotl, by now ren
 * [libomemo](https://github.com/gkdr/libomemo)
 
 ## Installation
-1. Create a folder `lib`, and put the source code of the dependencies in there.
+1. Create a folder `lib`, and put the source code of the dependencies in there. You do not have to "install" the libs, the makefile in this project will call the right targets in their makefiles later on.
 2. Install the used libs' dependencies.
-3. [Get the Pidgin source code](https://www.pidgin.im/download/) and put it in the root directory of this repository, same as the makefile. (The plugin was developed with 2.11.0, and that is also what the makefile uses as folder name. If yours is different, you will need to adopt it.)
+3. [Get the Pidgin source code](https://www.pidgin.im/download/) and put it in the root directory of this repository, same as the makefile. (The plugin was developed with 2.11.0, and that is also what the makefile uses as the folder name. If yours is different, you will need to adopt it.)
 4. Copy the only sourcefile `lurch.c` into `pidgin-x.y.z/libpurple/plugins`.
-5. Type `make lurch`. This will compile the plugin and put it in your `~/.purple/` directory.
+5. Type `make lurch` (or just `make`). This will compile the plugin, the two libs you just got, link everything together and put it in your `~/.purple/` directory.
 6. Done. The next time you start Pidgin (or a different libpurple client), you should be able to activate it in the "Plugins" window.
 
 ## Usage
