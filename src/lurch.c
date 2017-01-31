@@ -1565,7 +1565,16 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
 
   recipient_dl_p = omemo_devicelist_get_id_list(dl_p);
   if (!recipient_dl_p) {
-    goto cleanup;
+    ret_val = axc_session_exists_any(to, axc_ctx_p);
+    if (ret_val < 0) {
+      err_msg_dbg = g_strdup_printf("failed to check if session exists for %s in %s's db\n", to, uname);
+      goto cleanup;
+    } else if (ret_val == 1) {
+      purple_conv_present_error(recipient, purple_connection_get_account(gc_p), "Even though an encrypted session exists, the recipient's devicelist is empty."
+                                                                                "The user probably uninstalled OMEMO, so you can add this conversation to the blacklist.");
+    } else {
+      goto cleanup;
+    }
   }
 
   ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &user_dl_p);
@@ -1702,7 +1711,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
     curr_buddy_p = (PurpleConvChatBuddy *) curr_item_p->data;
     curr_buddy_jid = g_hash_table_lookup(nick_jid_ht_p, curr_buddy_p->name);
     if (!curr_buddy_jid) {
-      err_msg_dbg = g_strdup_printf("Could not find the JID for %s - the channel needs to be non-anonymous!\n", curr_buddy_p->name);
+      err_msg_dbg = g_strdup_printf("Could not find the JID for %s - the channel needs to be non-anonymous!", curr_buddy_p->name);
       purple_conv_present_error(purple_conversation_get_name(conv_p), purple_connection_get_account(gc_p), err_msg_dbg);
       g_free(err_msg_dbg);
       err_msg_dbg = (void *) 0;
@@ -1724,7 +1733,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
 
     if (omemo_devicelist_is_empty(curr_dl_p)) {
       err_msg_dbg = g_strdup_printf("User %s is no OMEMO user (has no devicelist). "
-                                    "This user cannot read any incoming encrypted messages and will send his own messages in the clear!\n",
+                                    "This user cannot read any incoming encrypted messages and will send his own messages in the clear!",
                                     curr_buddy_p->name);
       purple_conv_present_error(purple_conversation_get_name(conv_p), purple_connection_get_account(gc_p), err_msg_dbg);
       g_free(err_msg_dbg);
@@ -1910,7 +1919,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
       err_msg_dbg = g_strdup_printf("failed to look up %s in %s", sender, db_fn_omemo);
       goto cleanup;
     } else if (ret_val == 1) {
-      purple_conv_present_error(sender, purple_connection_get_account(gc_p), "Received encrypted message in blacklisted conversation.\n");
+      purple_conv_present_error(sender, purple_connection_get_account(gc_p), "Received encrypted message in blacklisted conversation.");
     }
   } else if (!g_strcmp0(type, "groupchat")) {
     split = g_strsplit(from, "/", 2);
@@ -1922,7 +1931,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
       err_msg_dbg = g_strdup_printf("failed to look up %s in %s", room_name, db_fn_omemo);
       goto cleanup;
     } else if (ret_val == 0) {
-      purple_conv_present_error(room_name, purple_connection_get_account(gc_p), "Received encrypted message in non-OMEMO room.\n");;
+      purple_conv_present_error(room_name, purple_connection_get_account(gc_p), "Received encrypted message in non-OMEMO room.");;
     }
 
     ret_val = sem_wait(&chat_users_ht_mutex);
@@ -2079,8 +2088,11 @@ static void lurch_message_warn(PurpleConnection * gc_p, xmlnode ** msg_stanza_pp
     } else if (ret_val == 0) {
       goto cleanup;
     } else if (ret_val == 1) {
-      purple_conv_present_error(conv_name, purple_connection_get_account(gc_p),
-                                "Even though you have an encryption session with this user, you received a plaintext message.\n");
+      ret_val = omemo_storage_chatlist_exists(conv_name, db_fn_omemo);
+      if (ret_val == 0) {
+        purple_conv_present_error(conv_name, purple_connection_get_account(gc_p),
+                                  "Even though you have an encryption session with this user, you received a plaintext message.");
+      }
     } else {
     }
   } else if (!g_strcmp0(type, "groupchat")) {
@@ -2094,7 +2106,7 @@ static void lurch_message_warn(PurpleConnection * gc_p, xmlnode ** msg_stanza_pp
       goto cleanup;
     } else if (ret_val == 1) {
       purple_conv_present_error(room_name, purple_connection_get_account(gc_p),
-                                "This groupchat is set to encrypted, but you received a plaintext message.\n");
+                                "This groupchat is set to encrypted, but you received a plaintext message.");
     }
   }
 
@@ -2276,13 +2288,13 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
   ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
-    err_msg = g_strdup("Failed to access axc db.\n");
+    err_msg = g_strdup("Failed to access axc db.");
     goto cleanup;
   }
 
   ret_val = axc_get_device_id(axc_ctx_p, &id);
   if (ret_val) {
-    err_msg = g_strdup("Failed to access axc db.\n");
+    err_msg = g_strdup("Failed to access axc db.");
     goto cleanup;
   }
 
@@ -2290,31 +2302,31 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
     if (!g_strcmp0(args[1], "yes")) {
       ret_val = omemo_devicelist_get_pep_node_name(&temp_msg_1);
       if (ret_val) {
-        err_msg = g_strdup("Failed to get devicelist PEP node name.\n");
+        err_msg = g_strdup("Failed to get devicelist PEP node name.");
         goto cleanup;
       }
 
       ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &own_dl_p);
       if (ret_val) {
-        err_msg = g_strdup("Failed to access omemo db.\n");
+        err_msg = g_strdup("Failed to access omemo db.");
         goto cleanup;
       }
 
       ret_val = axc_get_device_id(axc_ctx_p, &remove_id);
       if (ret_val) {
-        err_msg = g_strdup("Failed to get own ID from DB.\n");
+        err_msg = g_strdup("Failed to get own ID from DB.");
         goto cleanup;
       }
 
       ret_val = omemo_devicelist_remove(own_dl_p, remove_id);
       if (ret_val) {
-        err_msg = g_strdup_printf("Failed to remove %i from the list.\n", remove_id);
+        err_msg = g_strdup_printf("Failed to remove %i from the list.", remove_id);
         goto cleanup;
       }
 
       ret_val = omemo_devicelist_export(own_dl_p, &temp_msg_1);
       if (ret_val) {
-        err_msg = g_strdup("Failed to export new devicelist to xml string.\n");
+        err_msg = g_strdup("Failed to export new devicelist to xml string.");
         goto cleanup;
       }
 
@@ -2324,9 +2336,9 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
       jabber_pep_publish(purple_connection_get_protocol_data(purple_conversation_get_gc(conv_p)), dl_node_p);
       msg = g_strdup_printf("Published devicelist minus this device's ID. "
                             "You can deactivate the plugin now, otherwise it will be republished at the next startup. "
-                            "To delete all existing data you also have to delete the DB files in your ~/.pidgin folder.\n");
+                            "To delete all existing data you also have to delete the DB files in your ~/.pidgin folder.");
     } else {
-      msg = g_strdup("To uninstall lurch for this device, type 'lurch uninstall yes'.\n");
+      msg = g_strdup("To uninstall lurch for this device, type 'lurch uninstall yes'.");
     }
   } else if (!g_strcmp0(args[0], "help")) {
     msg = g_strdup("The following commands exist to interact with the lurch plugin:\n\n"
@@ -2345,42 +2357,44 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
                    "\n"
                    "In all types of conversations:\n"
                    " - '/lurch help': Displays this message.\n"
-                   " - '/lurch uninstall': Uninstalls this device from OMEMO by removing its device ID from the devicelist.\n");
+                   " - '/lurch uninstall': Uninstalls this device from OMEMO by removing its device ID from the devicelist.");
   } else {
     if(purple_conversation_get_type(conv_p) == 1) {
       if (!g_strcmp0(args[0], "blacklist")) {
         if (!g_strcmp0(args[1], "add")) {
-          ret_val = omemo_storage_chatlist_save(purple_conversation_get_name(conv_p), db_fn_omemo);
+          temp_msg_1 = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
+          ret_val = omemo_storage_chatlist_save(temp_msg_1, db_fn_omemo);
           if (ret_val) {
-            err_msg = g_strdup_printf("Failed to look up %s in DB %s.\n", purple_conversation_get_name(conv_p), db_fn_omemo);
+            err_msg = g_strdup_printf("Failed to look up %s in DB %s.", temp_msg_1, db_fn_omemo);
             goto cleanup;
           }
 
           purple_conversation_autoset_title(conv_p);
 
-          msg = g_strdup_printf("Added %s to your blacklist. Even if OMEMO is available, it will not be used.\n", purple_conversation_get_name(conv_p));
+          msg = g_strdup_printf("Added %s to your blacklist. Even if OMEMO is available, it will not be used.", temp_msg_1);
         } else if (!g_strcmp0(args[1], "remove")) {
-          ret_val = omemo_storage_chatlist_delete(purple_conversation_get_name(conv_p), db_fn_omemo);
+          temp_msg_1 = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
+          ret_val = omemo_storage_chatlist_delete(temp_msg_1, db_fn_omemo);
           if (ret_val) {
-            err_msg = g_strdup_printf("Failed to delete %s in DB %s.\n", purple_conversation_get_name(conv_p), db_fn_omemo);
+            err_msg = g_strdup_printf("Failed to delete %s in DB %s.", temp_msg_1, db_fn_omemo);
             goto cleanup;
           }
 
-          msg = g_strdup_printf("Removed %s from your blacklist. If OMEMO is available, it will be used.\n", purple_conversation_get_name(conv_p));
+          msg = g_strdup_printf("Removed %s from your blacklist. If OMEMO is available, it will be used.", temp_msg_1);
 
           topic_changed = 1;
           lurch_topic_update_im(conv_p);
         } else {
-          msg = g_strdup("Valid arguments for 'lurch blacklist' are 'add' and 'remove'.\n");
+          msg = g_strdup("Valid arguments for 'lurch blacklist' are 'add' and 'remove'.");
         }
       } else if (!g_strcmp0(args[0], "show")) {
         if (!g_strcmp0(args[1], "id")) {
           if (!g_strcmp0(args[2], "own")) {
-            msg = g_strdup_printf("Your own device ID is %i.\n", id);
+            msg = g_strdup_printf("Your own device ID is %i.", id);
           } else if (!g_strcmp0(args[2], "list")) {
             ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &own_dl_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access omemo db.\n");
+              err_msg = g_strdup("Failed to access omemo db.");
               goto cleanup;
             }
 
@@ -2403,14 +2417,14 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
             msg = g_strdup(temp_msg_1);
           } else {
             msg = g_strdup("Valid arguments for 'lurch show id' are 'own' to display this device's ID "
-                           "and 'list' to display this user's device list.\n");
+                           "and 'list' to display this user's device list.");
           }
 
         } else if (!g_strcmp0(args[1], "fp")) {
           if (!g_strcmp0(args[2], "own")) {
             ret_val = axc_key_load_public_own(axc_ctx_p, &key_buf_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access axc db.\n");
+              err_msg = g_strdup("Failed to access axc db.");
               goto cleanup;
             }
 
@@ -2421,7 +2435,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
             ret_val = axc_key_load_public_own(axc_ctx_p, &key_buf_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access axc db.\n");
+              err_msg = g_strdup("Failed to access axc db.");
               goto cleanup;
             }
 
@@ -2432,7 +2446,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
             ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &own_dl_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access omemo db.\n");
+              err_msg = g_strdup("Failed to access omemo db.");
               goto cleanup;
             }
 
@@ -2441,7 +2455,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
               if (omemo_devicelist_list_data(curr_p) != id) {
                 ret_val = axc_key_load_public_addr(uname, omemo_devicelist_list_data(curr_p), axc_ctx_p, &key_buf_p);
                 if (ret_val < 0) {
-                  err_msg = g_strdup_printf("Failed to access axc db.\n");
+                  err_msg = g_strdup_printf("Failed to access axc db.");
                   goto cleanup;
                 } else if (ret_val == 0) {
                   continue;
@@ -2466,7 +2480,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
             ret_val = omemo_storage_user_devicelist_retrieve(bare_jid, db_fn_omemo, &other_dl_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access omemo db.\n");
+              err_msg = g_strdup("Failed to access omemo db.");
               goto cleanup;
             }
 
@@ -2474,7 +2488,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
             for (curr_p = other_l_p; curr_p; curr_p = curr_p->next) {
               ret_val = axc_key_load_public_addr(bare_jid, omemo_devicelist_list_data(curr_p), axc_ctx_p, &key_buf_p);
               if (ret_val < 0) {
-                err_msg = g_strdup_printf("Failed to access axc db.\n");
+                err_msg = g_strdup_printf("Failed to access axc db.");
                 goto cleanup;
               } else if (ret_val == 0) {
                 continue;
@@ -2498,64 +2512,64 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
           } else {
             msg = g_strdup("Valid arguments for 'lurch show fp' are 'own' for displaying this device's fingerprint, "
-                           "and 'conv' for displaying all devices participating in this conversation and their fingerprints.\n");
+                           "and 'conv' for displaying all devices participating in this conversation and their fingerprints.");
           }
         } else {
-          msg = g_strdup("Valid arguments for 'lurch show' are 'id' and 'fp'.\n");
+          msg = g_strdup("Valid arguments for 'lurch show' are 'id' and 'fp'.");
         }
       } else if (!g_strcmp0(args[0], "remove")) {
         if (!g_strcmp0(args[1], "id")) {
           if (!args[2]) {
-            msg = g_strdup("The command 'lurch remove id' must be followed by a device ID.\n");
+            msg = g_strdup("The command 'lurch remove id' must be followed by a device ID.");
           } else {
             ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &own_dl_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access omemo db.\n");
+              err_msg = g_strdup("Failed to access omemo db.");
               goto cleanup;
             }
 
             remove_id = strtol(args[2], (void *) 0, 10);
 
             if (!omemo_devicelist_contains_id(own_dl_p, remove_id)) {
-              msg = g_strdup_printf("Your devicelist does not contain the ID %s.\n", args[2]);
+              msg = g_strdup_printf("Your devicelist does not contain the ID %s.", args[2]);
             } else {
               ret_val = omemo_devicelist_remove(own_dl_p, remove_id);
               if (ret_val) {
-                err_msg = g_strdup_printf("Failed to remove %i from the list.\n", remove_id);
+                err_msg = g_strdup_printf("Failed to remove %i from the list.", remove_id);
                 goto cleanup;
               }
 
               ret_val = omemo_devicelist_export(new_dl_p, &temp_msg_1);
               if (ret_val) {
-                err_msg = g_strdup("Failed to export new devicelist to xml string.\n");
+                err_msg = g_strdup("Failed to export new devicelist to xml string.");
                 goto cleanup;
               }
 
               dl_node_p = xmlnode_from_str(temp_msg_1, -1);
               jabber_pep_publish(purple_connection_get_protocol_data(purple_conversation_get_gc(conv_p)), dl_node_p);
 
-              msg = g_strdup_printf("Removed %i from devicelist and republished it.\n", remove_id);
+              msg = g_strdup_printf("Removed %i from devicelist and republished it.", remove_id);
             }
           }
         } else {
-          msg = g_strdup("Valid argument for 'lurch remove' is 'id'.\n");
+          msg = g_strdup("Valid argument for 'lurch remove' is 'id'.");
         }
 
       } else {
-        msg = g_strdup("Valid arguments for 'lurch' in IMs are 'show', 'remove', 'blacklist', 'uninstall', and 'help'.\n");
+        msg = g_strdup("Valid arguments for 'lurch' in IMs are 'show', 'remove', 'blacklist', 'uninstall', and 'help'.");
       }
     } else if (purple_conversation_get_type(conv_p) == 2) {
       if (!g_strcmp0(args[0], "enable")) {
         ret_val = omemo_storage_chatlist_save(purple_conversation_get_name(conv_p), db_fn_omemo);
         if (ret_val) {
-          err_msg = g_strdup_printf("Failed to look up %s in DB %s.\n", purple_conversation_get_name(conv_p), db_fn_omemo);
+          err_msg = g_strdup_printf("Failed to look up %s in DB %s.", purple_conversation_get_name(conv_p), db_fn_omemo);
           goto cleanup;
         }
 
         topic_changed = 1;
         lurch_topic_update_chat(conv_p);
 
-        msg = g_strdup_printf("Activated OMEMO for this chat. This is a client-side setting, so every participant needs to activate it to work.\n");
+        msg = g_strdup_printf("Activated OMEMO for this chat. This is a client-side setting, so every participant needs to activate it to work.");
       } else if (!g_strcmp0(args[0], "disable")) {
         ret_val = omemo_storage_chatlist_delete(purple_conversation_get_name(conv_p), db_fn_omemo);
         if (ret_val) {
@@ -2564,11 +2578,11 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
         }
 
         msg = g_strdup_printf("Deactivated OMEMO for this chat. "
-                              "This is a client-side setting and if other users still have it activated, you will not be able to read their messages.\n");
+                              "This is a client-side setting and if other users still have it activated, you will not be able to read their messages.");
 
         purple_conversation_autoset_title(conv_p);
       } else {
-        msg = g_strdup("Valid arguments for 'lurch' in groupchats are 'enable', 'disable', 'uninstall', and 'help'.\n");
+        msg = g_strdup("Valid arguments for 'lurch' in groupchats are 'enable', 'disable', 'uninstall', and 'help'.");
       }
     }
   }
@@ -2701,7 +2715,7 @@ static PurplePluginInfo info = {
     "Implements OMEMO for libpurple.",
     "End-to-end encryption using the Signal protocol, adapted for XMPP.",
     "Richard Bayerle <riba@firemail.cc>",
-    "http://top.kek",
+    "https://github.com/gkdr/lurch",
 
     lurch_plugin_load,
     lurch_plugin_unload,
