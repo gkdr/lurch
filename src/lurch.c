@@ -7,8 +7,6 @@
 #include <string.h>
 #include <time.h>
 
-#include <axolotl/axolotl.h>
-
 #include "account.h"
 #include "cmds.h"
 #include "conversation.h"
@@ -23,12 +21,12 @@
 #include "protocols/jabber/jutil.h"
 #include "protocols/jabber/pep.h"
 
-#include "../../../lib/libomemo/src/libomemo.h"
-#include "../../../lib/libomemo/src/libomemo_crypto.h"
-#include "../../../lib/libomemo/src/libomemo_storage.h"
+#include "libomemo.h"
+#include "libomemo_crypto.h"
+#include "libomemo_storage.h"
 
-#include "../../../lib/axc/src/axc.h"
-#include "../../../lib/axc/src/axc_store.h"
+#include "axc.h"
+#include "axc_store.h"
 
 #define JABBER_PROTOCOL_ID "prpl-jabber"
 
@@ -594,7 +592,7 @@ static int lurch_bundle_create_session(const char * uname,
 
   ret_val = omemo_bundle_import(xmlnode_to_str(items_p, &len), &om_bundle_p);
   if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to import xml unto bundle");
+    err_msg_dbg = g_strdup_printf("failed to import xml into bundle");
     goto cleanup;
   }
 
@@ -819,7 +817,6 @@ cleanup:
   if (err_msg_dbg) {
     purple_conv_present_error(recipient, purple_connection_get_account(js_p->gc), LURCH_ERR_STRING_ENCRYPT);
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
   }
 
   if (sem_db_waiting) {
@@ -1127,12 +1124,6 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
       err_msg_dbg = g_strdup_printf("failed to prepare axc");
       goto cleanup;
     }
-
-    ret_val = lurch_bundle_publish_own(js_p);
-    if (ret_val) {
-      err_msg_dbg = g_strdup_printf("failed to publish own bundle");
-      goto cleanup;
-    }
     purple_debug_info("lurch", "%s: %s\n", __func__, "...done");
   }
 
@@ -1201,6 +1192,12 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
     jabber_pep_publish(js_p, publish_node_dl_p);
 
     purple_debug_info("lurch", "%s: \n%s:\n", __func__, "...done");
+  }
+
+  ret_val = lurch_bundle_publish_own(js_p);
+  if (ret_val) {
+    err_msg_dbg = g_strdup_printf("failed to publish own bundle");
+    goto cleanup;
   }
 
   if (install && !uninstall) {
@@ -1758,6 +1755,9 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
     goto cleanup;
   }
 
+  body_node_p = xmlnode_get_child(*msg_stanza_pp, "body");
+  xmlnode_free(body_node_p);
+
 cleanup:
   if (err_msg_dbg) {
     purple_conv_present_error(purple_conversation_get_name(conv_p), purple_connection_get_account(gc_p), LURCH_ERR_STRING_ENCRYPT);
@@ -1781,14 +1781,13 @@ cleanup:
 }
 
 static void lurch_xml_sent_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp) {
+  xmlnode * body_node_p = (void *) 0;
   char * node_name = (*stanza_pp)->name;
   const char * type = xmlnode_get_attrib(*stanza_pp, "type");
-  xmlnode * body_node_p = (void *) 0;
 
   if (uninstall) {
     return;
   }
-
 
   if (!g_strcmp0(node_name, "message")) {
     body_node_p = xmlnode_get_child(*stanza_pp, "body");

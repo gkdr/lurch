@@ -17,13 +17,13 @@ AXC_BUILD=$(AXC_DIR)/build
 LFLAGS=-lmxml -pthread -ldl -lm -lcrypto -lglib-2.0 -lxml2 -L/usr/lib/purple-2/ -ljabber -lsqlite3 -laxolotl-c
 
 export PLUGIN_LIBS= ../../../$(LOMEMO_BUILD)/libomemo.la ../../../$(AXC_BUILD)/libaxc.la  $(LFLAGS)
-export PLUGIN_CFLAGS=-I/usr/include/libxml2
+export PLUGIN_CFLAGS=-I/usr/include/libxml2 -I../../../$(LOMEMO_SRC) -I../../../$(AXC_SRC)
 
 all: lurch
 
 .PHONY: libomemo
 libomemo: $(LOMEMO_DIR)
-	cd $(LOMEMO_DIR) && make libomemo-lurch
+	cd $(LOMEMO_DIR) && make libomemo-conversations
 	
 libaxc: $(AXC_DIR)
 	cd $(AXC_DIR) && make $@
