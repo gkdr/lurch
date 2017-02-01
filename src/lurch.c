@@ -28,6 +28,10 @@
 #include "axc.h"
 #include "axc_store.h"
 
+#ifdef _WIN32
+#define strnlen(a, b) (MIN(strlen(a), (b)))
+#endif
+
 #define JABBER_PROTOCOL_ID "prpl-jabber"
 
 // see https://www.ietf.org/rfc/rfc3920.txt
@@ -49,6 +53,10 @@
                                  "You can try again, or try to find the problem by looking at the debug log."
 #define LURCH_ERR_STRING_DECRYPT "There was an error decrypting an OMEMO message addressed to this device. " \
                                  "See the debug log for details."
+typedef struct lurch_addr {
+  char * jid;
+  uint32_t device_id;
+} lurch_addr;
 
 typedef struct lurch_queued_msg {
   omemo_message * om_msg_p;
@@ -76,8 +84,8 @@ GHashTable * chat_users_ht_p = (void *) 0;
 sem_t chat_users_ht_mutex;
 
 static void lurch_addr_list_destroy_func(gpointer data) {
-  axc_address * addr_p = (axc_address *) data;
-  free(addr_p->name);
+  lurch_addr * addr_p = (lurch_addr *) data;
+  free(addr_p->jid);
   free(addr_p);
 }
 
@@ -315,14 +323,14 @@ cleanup:
  * Encrypts a data buffer, usually the omemo symmetric key, using axolotl.
  * Assumes a valid session already exists.
  *
- * @param recipient_addr_p Pointer to the address of the recipient.
+ * @param recipient_addr_p Pointer to the lurch_addr of the recipient.
  * @param key_p Pointer to the key data.
  * @param key_len Length of the key data.
  * @param axc_ctx_p Pointer to the axc_context to use.
  * @param key_ct_pp Will point to a pointer to an axc_buf containing the key ciphertext on success.
  * @return 0 on success, negative on error
  */
-static int lurch_key_encrypt(const axc_address * recipient_addr_p,
+static int lurch_key_encrypt(const lurch_addr * recipient_addr_p,
                              const uint8_t * key_p,
                              size_t key_len,
                              axc_context * axc_ctx_p,
@@ -332,8 +340,9 @@ static int lurch_key_encrypt(const axc_address * recipient_addr_p,
 
   axc_buf * key_buf_p = (void *) 0;
   axc_buf * key_ct_buf_p = (void *) 0;
+  axc_address axc_addr = {0};
 
-  purple_debug_info("lurch", "%s: encrypting key for %s:%i\n", __func__, recipient_addr_p->name, recipient_addr_p->device_id);
+  purple_debug_info("lurch", "%s: encrypting key for %s:%i\n", __func__, recipient_addr_p->jid, recipient_addr_p->device_id);
 
   key_buf_p = axc_buf_create(key_p, key_len);
   if (!key_buf_p) {
@@ -341,7 +350,11 @@ static int lurch_key_encrypt(const axc_address * recipient_addr_p,
     goto cleanup;
   }
 
-  ret_val = axc_message_encrypt_and_serialize(key_buf_p, recipient_addr_p, axc_ctx_p, &key_ct_buf_p);
+  axc_addr.name = recipient_addr_p->jid;
+  axc_addr.name_len = strnlen(axc_addr.name, JABBER_MAX_LEN_BARE);
+  axc_addr.device_id = recipient_addr_p->device_id;
+
+  ret_val = axc_message_encrypt_and_serialize(key_buf_p, &axc_addr, axc_ctx_p, &key_ct_buf_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to encrypt the key");
     goto cleanup;
@@ -368,7 +381,7 @@ cleanup:
  * If the session does not exist, the recipient is skipped.
  *
  * @param om_msg_p Pointer to the omemo message.
- * @param addr_l_p Pointer to the head of a list of the intended recipients' axc_adresses.
+ * @param addr_l_p Pointer to the head of a list of the intended recipients' lurch_addrs.
  * @param axc_ctx_p Pointer to the axc_context to use.
  * @return 0 on success, negative on error.
  */
@@ -377,15 +390,19 @@ static int lurch_msg_encrypt_for_addrs(omemo_message * om_msg_p, GList * addr_l_
   char * err_msg_dbg = (void *) 0;
 
   GList * curr_l_p = (void *) 0;
-  axc_address * curr_addr_p = (void *) 0;
+  lurch_addr * curr_addr_p = (void *) 0;
+  axc_address addr = {0};
   axc_buf * curr_key_ct_buf_p = (void *) 0;
 
   purple_debug_info("lurch", "%s: trying to encrypt key for %i devices\n", __func__, g_list_length(addr_l_p));
 
   for (curr_l_p = addr_l_p; curr_l_p; curr_l_p = curr_l_p->next) {
-    curr_addr_p = (axc_address *) curr_l_p->data;
+    curr_addr_p = (lurch_addr *) curr_l_p->data;
+    addr.name = curr_addr_p->jid;
+    addr.name_len = strnlen(addr.name, JABBER_MAX_LEN_BARE);
+    addr.device_id = curr_addr_p->device_id;
 
-    ret_val = axc_session_exists_initiated(curr_addr_p, axc_ctx_p);
+    ret_val = axc_session_exists_initiated(&addr, axc_ctx_p);
     if (ret_val < 0) {
       err_msg_dbg = g_strdup_printf("failed to check if session exists, aborting");
       goto cleanup;
@@ -398,7 +415,7 @@ static int lurch_msg_encrypt_for_addrs(omemo_message * om_msg_p, GList * addr_l_
                                   axc_ctx_p,
                                   &curr_key_ct_buf_p);
       if (ret_val) {
-        err_msg_dbg = g_strdup_printf("failed to encrypt key for %s:%i", curr_addr_p->name, curr_addr_p->device_id);
+        err_msg_dbg = g_strdup_printf("failed to encrypt key for %s:%i", curr_addr_p->jid, curr_addr_p->device_id);
         goto cleanup;
       }
 
@@ -771,7 +788,7 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
     goto cleanup;
   }
 
-  (void) g_hash_table_add(qmsg_p->sess_handled_p, addr_key);
+  (void) g_hash_table_replace(qmsg_p->sess_handled_p, addr_key, addr_key);
 
   if (lurch_queued_msg_is_handled(qmsg_p)) {
     msg_handled = 1;
@@ -910,6 +927,7 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
   uint32_t own_id = 0;
   omemo_message * msg_p = (void *) 0;
   axc_address addr = {0};
+  lurch_addr laddr = {0};
   axc_buf * key_ct_buf_p = (void *) 0;
   char * msg_xml = (void *) 0;
   xmlnode * msg_node_p = (void *) 0;
@@ -922,6 +940,9 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
   addr.device_id = lurch_bundle_name_get_device_id(xmlnode_get_attrib(items_p, "node"));
 
   purple_debug_info("lurch", "%s: %s received bundle from %s:%i\n", __func__, uname, from, addr.device_id);
+
+  laddr.jid = strndup(addr.name, addr.name_len);
+  laddr.device_id = addr.device_id;
 
   ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
@@ -956,7 +977,7 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
     goto cleanup;
   }
 
-  ret_val = lurch_key_encrypt(&addr,
+  ret_val = lurch_key_encrypt(&laddr,
                               omemo_message_get_key(msg_p),
                               omemo_message_get_key_len(msg_p),
                               axc_ctx_p,
@@ -996,6 +1017,7 @@ cleanup:
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
     free(err_msg_dbg);
   }
+  free(laddr.jid);
   free(uname);
   axc_context_destroy_all(axc_ctx_p);
   omemo_message_destroy(msg_p);
@@ -1300,11 +1322,11 @@ cleanup:
 }
 
 /**
- * For a list of addresses, checks which ones do not have an active session.
- * Note that the addresses are not copied, the returned list is just a subset
+ * For a list of lurch_addrs, checks which ones do not have an active session.
+ * Note that the structs are not copied, the returned list is just a subset
  * of the pointers of the input list.
  *
- * @param addr_l_p A list of pointers to axc_address structs.
+ * @param addr_l_p A list of pointers to lurch_addr structs.
  * @param axc_ctx_p The axc_context to use.
  * @param no_sess_l_pp Will point to a list that contains pointers to those
  *                     addresses that do not have a session.
@@ -1316,10 +1338,16 @@ static int lurch_axc_sessions_exist(GList * addr_l_p, axc_context * axc_ctx_p, G
   GList * no_sess_l_p = (void *) 0;
 
   GList * curr_p;
-  axc_address * curr_addr_p;
+  lurch_addr * curr_addr_p;
+  axc_address curr_axc_addr = {0};
   for (curr_p = addr_l_p; curr_p; curr_p = curr_p->next) {
-    curr_addr_p = (axc_address *) curr_p->data;
-    ret_val = axc_session_exists_initiated(curr_addr_p, axc_ctx_p);
+    curr_addr_p = (lurch_addr *) curr_p->data;
+
+    curr_axc_addr.name = curr_addr_p->jid;
+    curr_axc_addr.name_len = strnlen(curr_axc_addr.name, JABBER_MAX_LEN_BARE);
+    curr_axc_addr.device_id = curr_addr_p->device_id;
+
+    ret_val = axc_session_exists_initiated(&curr_axc_addr, axc_ctx_p);
     if (ret_val < 0) {
       purple_debug_error("lurch", "%s: %s (%i)\n", __func__, "failed to see if session exists", ret_val);
       goto cleanup;
@@ -1339,7 +1367,7 @@ cleanup:
 }
 
 /**
- * Adds an omemo devicelist to a GList of axc_addresses.
+ * Adds an omemo devicelist to a GList of lurch_addrs.
  *
  * @param addrs_p Pointer to the list to add to. Remember NULL is a valid GList *.
  * @param dl_p Pointer to the omemo devicelist to add.
@@ -1352,12 +1380,11 @@ static GList * lurch_addr_list_add(GList * addrs_p, const omemo_devicelist * dl_
   GList * new_l_p = addrs_p;
   GList * dl_l_p = (void *) 0;
   GList * curr_p = (void *) 0;
-  axc_address curr_addr = {0};
+  lurch_addr curr_addr = {0};
   uint32_t curr_id = 0;
-  axc_address * temp_addr_p = (void *) 0;
+  lurch_addr * temp_addr_p = (void *) 0;
 
-  curr_addr.name = g_strdup(omemo_devicelist_get_owner(dl_p));
-  curr_addr.name_len = strnlen(curr_addr.name, JABBER_MAX_LEN_BARE);
+  curr_addr.jid = g_strdup(omemo_devicelist_get_owner(dl_p));
 
   dl_l_p = omemo_devicelist_get_id_list(dl_p);
 
@@ -1369,13 +1396,13 @@ static GList * lurch_addr_list_add(GList * addrs_p, const omemo_devicelist * dl_
 
     curr_addr.device_id = curr_id;
 
-    temp_addr_p = malloc(sizeof(axc_address));
+    temp_addr_p = malloc(sizeof(lurch_addr));
     if (!temp_addr_p) {
       ret_val = LURCH_ERR_NOMEM;
       goto cleanup;
     }
 
-    memcpy(temp_addr_p, &curr_addr, sizeof(axc_address));
+    memcpy(temp_addr_p, &curr_addr, sizeof(lurch_addr));
 
     new_l_p = g_list_prepend(new_l_p, temp_addr_p);
   }
@@ -1401,7 +1428,7 @@ cleanup:
  * @param js_p          Pointer to the JabberStream to use.
  * @param axc_ctx_p     Pointer to the axc_context to use.
  * @param om_msg_p      Pointer to the omemo message.
- * @param addr_l_p      Pointer to a GList of axc_adress structs that are supposed to receive the message.
+ * @param addr_l_p      Pointer to a GList of lurch_addr structs that are supposed to receive the message.
  * @param msg_stanza_pp Pointer to the pointer to the <message> stanza.
  *                      Is either changed to point to the encrypted message, or to NULL if the message is to be sent later.
  * @return 0 on success, negative on error.
@@ -1416,7 +1443,7 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
   xmlnode * temp_node_p = (void *) 0;
   lurch_queued_msg * qmsg_p = (void *) 0;
   GList * curr_item_p = (void *) 0;
-  axc_address curr_addr = {0};
+  lurch_addr curr_addr = {0};
   char * bundle_node_name = (void *) 0;
 
   ret_val = lurch_axc_sessions_exist(addr_l_p, axc_ctx_p, &no_sess_l_p);
@@ -1448,11 +1475,10 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
     }
 
     for (curr_item_p = no_sess_l_p; curr_item_p; curr_item_p = curr_item_p->next) {
-      curr_addr.name = ((axc_address *)curr_item_p->data)->name;
-      curr_addr.name_len = ((axc_address *)curr_item_p->data)->name_len;
-      curr_addr.device_id = ((axc_address *)curr_item_p->data)->device_id;
+      curr_addr.jid = ((lurch_addr *)curr_item_p->data)->jid;
+      curr_addr.device_id = ((lurch_addr *)curr_item_p->data)->device_id;
 
-      purple_debug_info("lurch", "%s: %s has device without session %i, requesting bundle\n", __func__, curr_addr.name, curr_addr.device_id);
+      purple_debug_info("lurch", "%s: %s has device without session %i, requesting bundle\n", __func__, curr_addr.jid, curr_addr.device_id);
 
       ret_val = omemo_bundle_get_pep_node_name(curr_addr.device_id, &bundle_node_name);
       if (ret_val) {
@@ -1461,7 +1487,7 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
       }
 
       lurch_bundle_request_do(js_p,
-                              curr_addr.name,
+                              curr_addr.jid,
                               curr_addr.device_id,
                               qmsg_p);
 
