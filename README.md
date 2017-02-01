@@ -3,11 +3,20 @@ In German, an Axolotl is a type of Lurch. This plugin brings Axolotl, by now ren
 
 (Plus I thought the word sounds funny, especially when pronounced by a speaker of English.)
 
-## Can it talk to conversations.im, the gajim OMEMO plugin, ...?
-__Yes__.
+## Can it talk to other OMEMO clients?to conversations.im, the gajim OMEMO plugin, ...?
+__Yes__, it was (briefly) tested with:
+* [Conversations](https://conversations.im/)
+* [The gajim OMEMO plugin](https://dev.gajim.org/gajim/gajim-plugins/wikis/OmemoGajimPlugin)
+* [Mancho's libpurple plugin](https://git.imp.fu-berlin.de/mancho/libpurple-omemo-plugin)
 
-## Do group chats work?
+## Do encrypted group chats work?
 Yes.
+
+## Does it work in Finch?
+Mostly, but I only tried it briefly.
+
+It only uses libpurple functions, so if they are implemented in the client correctly, they should work.
+That being said, indicating encrypted chats by setting the topic does not seem to work in Finch. The encryption itself does work though.
 
 ## Dependencies (aside from libpurple)
 * [axc](https://github.com/gkdr/axc)
