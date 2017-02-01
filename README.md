@@ -3,7 +3,7 @@ In German, an Axolotl is a type of Lurch. This plugin brings Axolotl, by now ren
 
 (Plus I thought the word sounds funny, especially when pronounced by a speaker of English.)
 
-## Can it talk to other OMEMO clients?to conversations.im, the gajim OMEMO plugin, ...?
+## Can it talk to other OMEMO clients?
 __Yes__, it was (briefly) tested with:
 * [Conversations](https://conversations.im/)
 * [The gajim OMEMO plugin](https://dev.gajim.org/gajim/gajim-plugins/wikis/OmemoGajimPlugin)
