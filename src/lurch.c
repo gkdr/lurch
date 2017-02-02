@@ -197,8 +197,14 @@ static char * lurch_uname_get_db_fn(const char * uname, char * which) {
  * @return A duplicated string with the trailing "/" removed. free() when done.
  */
 static char * lurch_uname_strip(const char * uname) {
-  char * stripped = g_strdup(uname);
-  stripped[strnlen(stripped, JABBER_MAX_LEN_BARE) - 1] = '\0';
+  char ** split;
+  char * stripped;
+
+  split = g_strsplit(uname, "/", 2);
+  stripped = g_strdup(split[0]);
+
+  g_strfreev(split);
+
   return stripped;
 }
 
