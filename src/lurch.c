@@ -941,7 +941,7 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
 
   purple_debug_info("lurch", "%s: %s received bundle from %s:%i\n", __func__, uname, from, addr.device_id);
 
-  laddr.jid = strndup(addr.name, addr.name_len);
+  laddr.jid = g_strndup(addr.name, addr.name_len);
   laddr.device_id = addr.device_id;
 
   ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
