@@ -17,9 +17,9 @@
 #include "version.h"
 #include "xmlnode.h"
 
-#include "protocols/jabber/jabber.h"
-#include "protocols/jabber/jutil.h"
-#include "protocols/jabber/pep.h"
+#include "jabber.h"
+#include "jutil.h"
+#include "pep.h"
 
 #include "libomemo.h"
 #include "libomemo_crypto.h"

@@ -1,37 +1,52 @@
-LO_CFLAGS=-g -std=c11 -Wall -Wextra -Wpedantic -Wstrict-overflow -fno-strict-aliasing -funsigned-char -D_XOPEN_SOURCE=700 -D_BSD_SOURCE -fno-builtin-memset `pkg-config --cflags glib-2.0` -DOMEMO_XMLNS='"lurch"'
-
 PURPLE_PLUGIN_DIR=~/.purple/plugins
 PIDGIN_DIR=./pidgin-2.11.0
 PURPLE_PLUGIN_SRC_DIR=$(PIDGIN_DIR)/libpurple/plugins
 
 LDIR=./lib
+BDIR=./build
+SDIR=./src
+HDIR=./headers
 
 LOMEMO_DIR=$(LDIR)/libomemo
 LOMEMO_SRC=$(LOMEMO_DIR)/src
 LOMEMO_BUILD=$(LOMEMO_DIR)/build
+LOMEMO_FILES=$(LOMEMO_BUILD)/libomemo.o $(LOMEMO_BUILD)/libomemo_storage.o $(LOMEMO_BUILD)/libomemo_crypto.o
 
 AXC_DIR=$(LDIR)/axc
 AXC_SRC=$(AXC_DIR)/src
 AXC_BUILD=$(AXC_DIR)/build
+AXC_FILES=$(AXC_BUILD)/axc.o $(AXC_BUILD)/axc_store.o $(AXC_BUILD)/axc_crypto.o
 
-LFLAGS=-lmxml -pthread -ldl -lm -lcrypto -lglib-2.0 -lxml2 -L/usr/lib/purple-2/ -ljabber -lsqlite3 -laxolotl-c
+FILES=$(LOMEMO_FILES) $(AXC_FILES)
 
-export PLUGIN_LIBS= ../../../$(LOMEMO_BUILD)/libomemo.la ../../../$(AXC_BUILD)/libaxc.la  $(LFLAGS)
-export PLUGIN_CFLAGS=-I/usr/include/libxml2 -I../../../$(LOMEMO_SRC) -I../../../$(AXC_SRC)
+HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC)
+
+PKGCFG_C=$(shell pkg-config --cflags glib-2.0 purple)  $(shell xml2-config --cflags)
+PKGCFG_L=$(shell pkg-config --libs purple glib-2.0 sqlite3) $(shell xml2-config --libs) -L$(shell pkg-config --variable=plugindir purple)
+
+CFLAGS=-std=c11 -Wall -Wstrict-overflow -D_XOPEN_SOURCE=700 -D_BSD_SOURCE $(PKGCFG_C) $(HEADERS)
+LFLAGS=-lmxml -pthread -ldl -lm -lcrypto -laxolotl-c $(PKGCFG_L) -ljabber
 
 all: lurch
 
-.PHONY: libomemo
-libomemo: $(LOMEMO_DIR)
-	cd $(LOMEMO_DIR) && make libomemo-conversations
+$(BDIR):
+	mkdir -p build
 	
-libaxc: $(AXC_DIR)
-	cd $(AXC_DIR) && make $@
+axc: $(AXC_SRC)
+	cd $(AXC_DIR) && make axc-pic
 
-lurch: libomemo libaxc $(PURPLE_PLUGIN_SRC_DIR)/lurch.c
-	cd $(PURPLE_PLUGIN_SRC_DIR) && make $@.so && mv $@.so $(PURPLE_PLUGIN_DIR)
+libomemo: $(LOMEMO_SRC)
+	cd $(LOMEMO_DIR) && make libomemo-conversations-pic
+	
+lurch: $(SDIR)/lurch.c axc libomemo $(BDIR)
+	gcc $(CFLAGS) -fPIC -c $(SDIR)/$@.c -o $(BDIR)/$@.o
+	gcc -fPIC -shared $(CFLAGS) $(BDIR)/$@.o $(FILES) -o $(BDIR)/$@.so $(LFLAGS)
+	
+install: $(BDIR)/lurch.so
+	mv $(BDIR)/lurch.so $(PURPLE_PLUGIN_DIR)
 
 .PHONY: clean
 clean:
 	rm -rf $(LOMEMO_BUILD)
 	rm -rf $(AXC_BUILD)
+	rm -rf $(BDIR)
