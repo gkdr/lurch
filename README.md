@@ -16,32 +16,32 @@ Yes.
 Mostly, but I only tried it briefly.
 
 It only uses libpurple functions, so if they are implemented in the client correctly, they should work.
-That being said, indicating encrypted chats by setting the topic does not seem to work in Finch. The encryption itself does work though.
+That being said, indicating encrypted chats by setting the topic does not seem to work in Finch (maybe just because window titles are very short). The encryption itself does work though, which you can confirm by looking at the sent/received messages in the debug log.
 
 ## Dependencies (aside from libpurple)
 * [axc](https://github.com/gkdr/axc)
 * [libomemo](https://github.com/gkdr/libomemo)
 
 ## Installation
-1. Create a folder `lib`, and put the source code of the dependencies in there. You do not have to "install" the libs, the makefile in this project will call the right targets in their makefiles later on.
-2. Install the used libs' dependencies (which boils down to SQLite, OpenSSL, Mini-XML, and the libaxolotl-c that comes with axc.).
-3. In case you don't have it yet, install `libpurple-dev`.)
-4. Type `make lurch` (or just `make`). This will compile the plugin, the two libs you just got, and link everything together into one file.
-5. To easily copy it in your plugin dir, type `make install`.
-6. The next time you start Pidgin (or a different libpurple client), you should be able to activate it in the "Plugins" window.
+1. Install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libsqlite3-dev`, `libssl-dev`)
+1. `git clone https://github.com/gkdr/lurch/`
+2. `cd lurch`
+3. `git submodule update --init`
+4. `make`
+5. A final `make install` should copy the compiled plugin into your libpurple plugin dir.
+6. The next time you start Pidgin (or another libpurple client), you should be able to activate it in the "Plugins" window.
 
 ## Usage
-This plugin will set the topic to notify the user if encryption is enabled or not. If it is, it will generally not send plaintext messages. If a plaintext message is received, the user will be warned.
+This plugin will set the window title to notify the user if encryption is enabled or not. If it is, it will generally not send plaintext messages. If a plaintext message is received in a chat that is supposed to be encrypted, the user will be warned.
 
-For conversations with one other user, it is automatically activated if the other user is using lurch too. If you do not want this, you can blacklist the user by typing `/lurch blacklist add` in the conversation window.
+For conversations with one other user, it is automatically activated if the other user is using OMEMO too. If you do not want this, you can blacklist the user by typing `/lurch blacklist add` in the conversation window.
 
+In groupchats, encryption has to be turned on first by typing `/lurch enable`. This is a client-side setting, so every participant has to do this in order for it to work. Warning messages are displayed if it does not work for every user in the conference, hopefully helping to fix the issue.
 
-In groupchats, encryption has to be turned on first by typing `/lurch enable`. This is a client-side setting, so every participant has to do this in order for it to work.
+The same restrictions as with other OMEMO applications apply though - each user has to have every other user in his buddy list, otherwise the information needed to build a session is not accessible. Thus, it is recommended to set it to members-only.
+Additionally, the room has to be set to non-anonymous so that the full JID of every user is accessible - otherwise, the necessary information cannot be fetched.
 
-The same restrictions as with other OMEMO applications apply - each user has to have every other user in his buddy list, otherwise the information needed to build a session is not accessible. Thus, it is recommended to set it to members-only.
-Additionally, the room has to be set to non-anonymous so that the full JID of every user is accessible.
-
-More information can be found by typing `/lurch help` in any conversation window.
+More information on the available commands can be found by typing `/lurch help` in any conversation window.
 
 ## Caveats
 libpurple does not have support for Carbons or MAM, both used to deliver functionality that the OMEMO protocol can do in theory, which is messages to multiple devices and catchup with messages that were sent while a device was offline.
