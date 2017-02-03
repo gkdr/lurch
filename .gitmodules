@@ -1,0 +1,6 @@
+[submodule "lib/axc"]
+	path = lib/axc
+	url = https://github.com/gkdr/axc
+[submodule "lib/libomemo"]
+	path = lib/libomemo
+	url = https://github.com/gkdr/libomemo
