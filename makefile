@@ -19,7 +19,7 @@ AXC_FILES=$(AXC_BUILD)/axc.o $(AXC_BUILD)/axc_store.o $(AXC_BUILD)/axc_crypto.o
 
 AX_DIR=$(AXC_DIR)/lib/libaxolotl-c
 
-FILES=$(LOMEMO_FILES) $(AXC_FILES) $(AX_DIR)/build/src/libaxolotl-c.so
+FILES=$(LOMEMO_FILES) $(AXC_FILES)
 
 HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
 
@@ -27,7 +27,8 @@ PKGCFG_C=$(shell pkg-config --cflags glib-2.0 purple)  $(shell xml2-config --cfl
 PKGCFG_L=$(shell pkg-config --libs purple glib-2.0 sqlite3) $(shell xml2-config --libs) -L$(shell pkg-config --variable=plugindir purple)
 
 CFLAGS=-std=c11 -Wall -Wstrict-overflow -D_XOPEN_SOURCE=700 -D_BSD_SOURCE $(PKGCFG_C) $(HEADERS)
-LFLAGS=-lmxml -pthread -ldl -lm -lcrypto $(PKGCFG_L) -ljabber -L$(AX_DIR)/build/src/
+LFLAGS=-lmxml -pthread -ldl -lm -lcrypto $(PKGCFG_L) -ljabber -Wl,--whole-archive $(AX_DIR)/build/src/libaxolotl-c.a -Wl,--no-whole-archive
+
 
 all: lurch
 
@@ -35,7 +36,7 @@ $(BDIR):
 	mkdir -p build
 	
 axc: $(AXC_SRC)
-	cd $(AXC_DIR)/lib/libaxolotl-c/ && mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=ON .. && make
+	cd $(AXC_DIR)/lib/libaxolotl-c/ && mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug .. && make
 	cd $(AXC_DIR) && make axc-pic
 
 libomemo: $(LOMEMO_SRC)
