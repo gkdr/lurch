@@ -24,10 +24,10 @@ FILES=$(LOMEMO_FILES) $(AXC_FILES)
 HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
 
 PKGCFG_C=$(shell pkg-config --cflags glib-2.0 purple)  $(shell xml2-config --cflags)
-PKGCFG_L=$(shell pkg-config --libs purple glib-2.0 sqlite3) $(shell xml2-config --libs) -L$(shell pkg-config --variable=plugindir purple)
+PKGCFG_L=$(shell pkg-config --libs purple glib-2.0 sqlite3 mxml) $(shell xml2-config --libs) -L$(shell pkg-config --variable=plugindir purple) $(shell libgcrypt-config --libs)
 
 CFLAGS=-std=c11 -Wall -Wstrict-overflow -D_XOPEN_SOURCE=700 -D_BSD_SOURCE $(PKGCFG_C) $(HEADERS)
-LFLAGS=-lmxml -pthread -ldl -lm -lcrypto $(PKGCFG_L) -ljabber -Wl,--whole-archive $(AX_DIR)/build/src/libaxolotl-c.a -Wl,--no-whole-archive
+LFLAGS=-pthread -ldl -lm $(PKGCFG_L) -ljabber -Wl,--whole-archive $(AX_DIR)/build/src/libaxolotl-c.a -Wl,--no-whole-archive
 
 
 all: lurch

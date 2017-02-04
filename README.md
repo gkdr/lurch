@@ -18,12 +18,8 @@ Mostly, but I only tried it briefly.
 It only uses libpurple functions, so if they are implemented in the client correctly, they should work.
 That being said, indicating encrypted chats by setting the topic does not seem to work in Finch (maybe just because window titles are very short). The encryption itself does work though, which you can confirm by looking at the sent/received messages in the debug log.
 
-## Dependencies (aside from libpurple)
-* [axc](https://github.com/gkdr/axc)
-* [libomemo](https://github.com/gkdr/libomemo)
-
 ## Installation
-1. Install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libsqlite3-dev`, `libssl-dev`)
+1. Install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libsqlite3-dev`, `libgcrypt20-dev`)
 1. `git clone https://github.com/gkdr/lurch/`
 2. `cd lurch`
 3. `git submodule update --init`
