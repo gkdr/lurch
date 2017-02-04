@@ -17,15 +17,17 @@ AXC_SRC=$(AXC_DIR)/src
 AXC_BUILD=$(AXC_DIR)/build
 AXC_FILES=$(AXC_BUILD)/axc.o $(AXC_BUILD)/axc_store.o $(AXC_BUILD)/axc_crypto.o
 
-FILES=$(LOMEMO_FILES) $(AXC_FILES) $(AXC_DIR)/lib/libaxolotl-c/build/src/libaxolotl-c.so
+AX_DIR=$(AXC_DIR)/lib/libaxolotl-c
 
-HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC)
+FILES=$(LOMEMO_FILES) $(AXC_FILES) $(AX_DIR)/build/src/libaxolotl-c.so
+
+HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
 
 PKGCFG_C=$(shell pkg-config --cflags glib-2.0 purple)  $(shell xml2-config --cflags)
 PKGCFG_L=$(shell pkg-config --libs purple glib-2.0 sqlite3) $(shell xml2-config --libs) -L$(shell pkg-config --variable=plugindir purple)
 
 CFLAGS=-std=c11 -Wall -Wstrict-overflow -D_XOPEN_SOURCE=700 -D_BSD_SOURCE $(PKGCFG_C) $(HEADERS)
-LFLAGS=-lmxml -pthread -ldl -lm -lcrypto $(PKGCFG_L) -ljabber -L$(AXC_DIR)/lib/libaxolotl-c/build/src/
+LFLAGS=-lmxml -pthread -ldl -lm -lcrypto $(PKGCFG_L) -ljabber -L$(AX_DIR)/build/src/
 
 all: lurch
 
@@ -50,4 +52,5 @@ install: $(BDIR)/lurch.so
 clean:
 	rm -rf $(LOMEMO_BUILD)
 	rm -rf $(AXC_BUILD)
+	rm -rf $(AX_DIR)/build
 	rm -rf $(BDIR)
