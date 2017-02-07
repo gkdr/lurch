@@ -2,9 +2,11 @@
 
 #include <glib.h>
 
+#include <fcntl.h>
 #include <inttypes.h>
 #include <semaphore.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 
 #include "account.h"
@@ -63,10 +65,11 @@ typedef struct lurch_queued_msg {
   GList * recipient_addr_l_p;
   GList * no_sess_l_p;
   GHashTable * sess_handled_p;
+  char * mutex_name;
   sem_t * mutex_p;
 } lurch_queued_msg;
 
-sem_t db_mutex;
+sem_t * db_mutex_p;
 
 omemo_crypto_provider crypto = {
     .random_bytes_func = omemo_default_crypto_random_bytes,
@@ -81,7 +84,7 @@ PurpleCmdId lurch_cmd_id = 0;
 
 // key: char * (name of muc), value: GHashTable * (mapping of user alias to full jid)
 GHashTable * chat_users_ht_p = (void *) 0;
-sem_t chat_users_ht_mutex;
+sem_t * chat_users_ht_mutex_p;
 
 static void lurch_addr_list_destroy_func(gpointer data) {
   lurch_addr * addr_p = (lurch_addr *) data;
@@ -109,6 +112,7 @@ static int lurch_queued_msg_create(omemo_message * om_msg_p,
   char * err_msg_dbg = (void *) 0;
 
   lurch_queued_msg * qmsg_p = (void *) 0;
+  char * mutex_name = (void *) 0;
   sem_t * mutex_p = (void *) 0;
   GHashTable * sess_handled_p = (void *) 0;
 
@@ -119,16 +123,13 @@ static int lurch_queued_msg_create(omemo_message * om_msg_p,
     goto cleanup;
   }
 
-  mutex_p = malloc(sizeof(sem_t));
-  if (!mutex_p) {
-    ret_val = LURCH_ERR_NOMEM;
-    err_msg_dbg = g_strdup_printf("failed to malloc space for mutex");
-    goto cleanup;
-  }
+  mutex_name = g_strdup_printf("/%i", g_random_int());
+  qmsg_p->mutex_name = mutex_name;
 
-  ret_val = sem_init(mutex_p, 0, 1);
-  if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to init mutex");
+  mutex_p = sem_open(mutex_name, O_CREAT, S_IRUSR | S_IWUSR, 1);
+  if (!mutex_p) {
+    ret_val = LURCH_ERR;
+    err_msg_dbg = g_strdup_printf("failed to open mutex");
     goto cleanup;
   }
   qmsg_p->mutex_p = mutex_p;
@@ -145,8 +146,8 @@ static int lurch_queued_msg_create(omemo_message * om_msg_p,
 cleanup:
   if (ret_val) {
     free(qmsg_p);
-    (void) sem_destroy(mutex_p);
-    free(mutex_p);
+    g_free(mutex_name);
+    (void) sem_close(mutex_p);
   }
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
@@ -167,8 +168,7 @@ static void lurch_queued_msg_destroy(lurch_queued_msg * qmsg_p) {
     omemo_message_destroy(qmsg_p->om_msg_p);
     g_list_free_full(qmsg_p->recipient_addr_l_p, free);
     g_hash_table_destroy(qmsg_p->sess_handled_p);
-    (void) sem_destroy(qmsg_p->mutex_p);
-    free(qmsg_p->mutex_p);
+    (void) sem_close(qmsg_p->mutex_p);
     free(qmsg_p);
   }
 }
@@ -754,7 +754,7 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
       goto cleanup;
     }
 
-    ret_val = sem_wait(&db_mutex);
+    ret_val = sem_wait(db_mutex_p);
     if (ret_val) {
       err_msg_dbg = "failed to wait on the db mutex";
       goto cleanup;
@@ -773,7 +773,7 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
       goto cleanup;
     }
 
-    ret_val = sem_post(&db_mutex);
+    ret_val = sem_post(db_mutex_p);
     if (ret_val) {
       err_msg_dbg = "failed to post the db mutex";
       goto cleanup;
@@ -843,7 +843,7 @@ cleanup:
   }
 
   if (sem_db_waiting) {
-    (void) sem_post(&db_mutex);
+    (void) sem_post(db_mutex_p);
   }
   free(uname);
   g_strfreev(split);
@@ -1723,7 +1723,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
 
   chat_p = purple_conversation_get_chat_data(conv_p);
 
-  ret_val = sem_wait(&chat_users_ht_mutex);
+  ret_val = sem_wait(chat_users_ht_mutex_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to wait on sem");
     goto cleanup;
@@ -1774,7 +1774,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
     omemo_devicelist_destroy(curr_dl_p);
     curr_dl_p = (void *) 0;
   }
-  ret_val = sem_post(&chat_users_ht_mutex);
+  ret_val = sem_post(chat_users_ht_mutex_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to post sem");
     goto cleanup;
@@ -1802,7 +1802,7 @@ cleanup:
     g_list_free_full(addr_l_p, lurch_addr_list_destroy_func);
   }
   if(sem_waiting) {
-    (void) sem_post(&chat_users_ht_mutex);
+    (void) sem_post(chat_users_ht_mutex_p);
   }
 
   free(uname);
@@ -1876,7 +1876,7 @@ static void lurch_presence_handle(PurpleConnection * gc_p, xmlnode ** presence_s
   room_name = split[0];
   buddy_nick = split[1];
 
-  ret_val = sem_wait(&chat_users_ht_mutex);
+  ret_val = sem_wait(chat_users_ht_mutex_p);
   if (ret_val) {
     goto cleanup;
   }
@@ -1893,7 +1893,7 @@ static void lurch_presence_handle(PurpleConnection * gc_p, xmlnode ** presence_s
     (void) g_hash_table_insert(chat_users_ht_p, room_name, nick_jid_ht_p);
   }
 
-  ret_val = sem_post(&chat_users_ht_mutex);
+  ret_val = sem_post(chat_users_ht_mutex_p);
   if (ret_val) {
     goto cleanup;
   }
@@ -1965,7 +1965,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
       purple_conv_present_error(room_name, purple_connection_get_account(gc_p), "Received encrypted message in non-OMEMO room.");;
     }
 
-    ret_val = sem_wait(&chat_users_ht_mutex);
+    ret_val = sem_wait(chat_users_ht_mutex_p);
     if (ret_val) {
       goto cleanup;
     }
@@ -1973,7 +1973,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     nick_jid_ht_p = g_hash_table_lookup(chat_users_ht_p, room_name);
     sender = g_strdup(g_hash_table_lookup(nick_jid_ht_p, buddy_nick));
 
-    ret_val = sem_post(&chat_users_ht_mutex);
+    ret_val = sem_post(chat_users_ht_mutex_p);
     if (ret_val) {
       goto cleanup;
     }
@@ -2319,13 +2319,13 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
   ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
-    err_msg = g_strdup("Failed to access axc db.");
+    err_msg = g_strdup("Failed to create axc ctx.");
     goto cleanup;
   }
 
   ret_val = axc_get_device_id(axc_ctx_p, &id);
   if (ret_val) {
-    err_msg = g_strdup("Failed to access axc db.");
+    err_msg = g_strdup_printf("Failed to access axc db %s. Does the path seem correct?", axc_context_get_db_fn(axc_ctx_p));
     goto cleanup;
   }
 
@@ -2339,19 +2339,19 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
       ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &own_dl_p);
       if (ret_val) {
-        err_msg = g_strdup("Failed to access omemo db.");
+        err_msg = g_strdup_printf("Failed to access omemo db %s. Does the path seem correct?", db_fn_omemo);
         goto cleanup;
       }
 
       ret_val = axc_get_device_id(axc_ctx_p, &remove_id);
       if (ret_val) {
-        err_msg = g_strdup("Failed to get own ID from DB.");
+        err_msg = g_strdup_printf("Failed to get own ID from DB %s.", axc_context_get_db_fn(axc_ctx_p));
         goto cleanup;
       }
 
       ret_val = omemo_devicelist_remove(own_dl_p, remove_id);
       if (ret_val) {
-        err_msg = g_strdup_printf("Failed to remove %i from the list.", remove_id);
+        err_msg = g_strdup_printf("Failed to remove %i from the list in DB %s.", remove_id, db_fn_omemo);
         goto cleanup;
       }
 
@@ -2425,7 +2425,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
           } else if (!g_strcmp0(args[2], "list")) {
             ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &own_dl_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access omemo db.");
+              err_msg = g_strdup_printf("Failed to access omemo db %s.", db_fn_omemo);
               goto cleanup;
             }
 
@@ -2455,7 +2455,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
           if (!g_strcmp0(args[2], "own")) {
             ret_val = axc_key_load_public_own(axc_ctx_p, &key_buf_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access axc db.");
+              err_msg = g_strdup_printf("Failed to access axc db %s.", axc_context_get_db_fn(axc_ctx_p));
               goto cleanup;
             }
 
@@ -2466,7 +2466,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
             ret_val = axc_key_load_public_own(axc_ctx_p, &key_buf_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access axc db.");
+              err_msg = g_strdup_printf("Failed to access axc db %s.", axc_context_get_db_fn(axc_ctx_p));
               goto cleanup;
             }
 
@@ -2477,7 +2477,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
             ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &own_dl_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access omemo db.");
+              err_msg = g_strdup_printf("Failed to access omemo db %s.", db_fn_omemo);
               goto cleanup;
             }
 
@@ -2486,7 +2486,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
               if (omemo_devicelist_list_data(curr_p) != id) {
                 ret_val = axc_key_load_public_addr(uname, omemo_devicelist_list_data(curr_p), axc_ctx_p, &key_buf_p);
                 if (ret_val < 0) {
-                  err_msg = g_strdup_printf("Failed to access axc db.");
+                  err_msg = g_strdup_printf("Failed to access axc db %s.", axc_context_get_db_fn(axc_ctx_p));
                   goto cleanup;
                 } else if (ret_val == 0) {
                   continue;
@@ -2511,7 +2511,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
             ret_val = omemo_storage_user_devicelist_retrieve(bare_jid, db_fn_omemo, &other_dl_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access omemo db.");
+              err_msg = g_strdup_printf("Failed to access omemo db %s.", db_fn_omemo);
               goto cleanup;
             }
 
@@ -2519,7 +2519,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
             for (curr_p = other_l_p; curr_p; curr_p = curr_p->next) {
               ret_val = axc_key_load_public_addr(bare_jid, omemo_devicelist_list_data(curr_p), axc_ctx_p, &key_buf_p);
               if (ret_val < 0) {
-                err_msg = g_strdup_printf("Failed to access axc db.");
+                err_msg = g_strdup_printf("Failed to access axc db %s.", axc_context_get_db_fn(axc_ctx_p));
                 goto cleanup;
               } else if (ret_val == 0) {
                 continue;
@@ -2555,7 +2555,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
           } else {
             ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &own_dl_p);
             if (ret_val) {
-              err_msg = g_strdup("Failed to access omemo db.");
+              err_msg = g_strdup_printf("Failed to access omemo db %s.", db_fn_omemo);
               goto cleanup;
             }
 
@@ -2659,15 +2659,17 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
   char * dl_ns = (void *) 0;
   void * jabber_handle_p = (void *) 0;
 
-  ret_val = sem_init(&db_mutex, 0, 1);
-  if (ret_val) {
-    err_msg_dbg = "failed to init db mutex";
+  db_mutex_p = sem_open("/db_mutex", O_CREAT, S_IRUSR | S_IWUSR, 1);
+  if (!db_mutex_p) {
+    err_msg_dbg = "failed to open db mutex";
+    ret_val = LURCH_ERR;
     goto cleanup;
   }
 
-  ret_val = sem_init(&chat_users_ht_mutex, 0, 1);
-  if (ret_val) {
-    err_msg_dbg = "failed to init ht mutex";
+  chat_users_ht_mutex_p = sem_open("/chat_users_ht_mutex", O_CREAT, S_IRUSR | S_IWUSR, 1);
+  if (!chat_users_ht_mutex_p) {
+    err_msg_dbg = "failed to open ht mutex";
+    ret_val = -1;
     goto cleanup;
   }
 
@@ -2711,8 +2713,8 @@ cleanup:
   if (ret_val) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
     omemo_default_crypto_teardown();
-    sem_destroy(&db_mutex);
-    sem_destroy(&chat_users_ht_mutex);
+    sem_close(db_mutex_p);
+    sem_close(chat_users_ht_mutex_p);
     g_hash_table_destroy(chat_users_ht_p);
     return FALSE;
   }
@@ -2721,8 +2723,8 @@ cleanup:
 }
 
 static gboolean lurch_plugin_unload(PurplePlugin * plugin_p) {
-  sem_destroy(&db_mutex);
-  sem_destroy(&chat_users_ht_mutex);
+  sem_close(db_mutex_p);
+  sem_close(chat_users_ht_mutex_p);
   //g_hash_table_destroy(chat_users_ht_p);
   omemo_default_crypto_teardown();
 

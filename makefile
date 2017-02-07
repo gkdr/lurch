@@ -19,7 +19,7 @@ AXC_FILES=$(AXC_BUILD)/axc.o $(AXC_BUILD)/axc_store.o $(AXC_BUILD)/axc_crypto.o
 
 AX_DIR=$(AXC_DIR)/lib/libaxolotl-c
 
-FILES=$(LOMEMO_FILES) $(AXC_FILES)
+FILES=$(LOMEMO_FILES) $(AXC_FILES) $(AX_DIR)/build/src/libaxolotl-c.a
 
 HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
 
@@ -27,7 +27,7 @@ PKGCFG_C=$(shell pkg-config --cflags glib-2.0 purple)  $(shell xml2-config --cfl
 PKGCFG_L=$(shell pkg-config --libs purple glib-2.0 sqlite3 mxml) $(shell xml2-config --libs) -L$(shell pkg-config --variable=plugindir purple) $(shell libgcrypt-config --libs)
 
 CFLAGS=-std=c11 -Wall -Wstrict-overflow -D_XOPEN_SOURCE=700 -D_BSD_SOURCE $(PKGCFG_C) $(HEADERS)
-LFLAGS=-pthread -ldl -lm $(PKGCFG_L) -ljabber -Wl,--whole-archive $(AX_DIR)/build/src/libaxolotl-c.a -Wl,--no-whole-archive
+LFLAGS=-pthread -ldl -lm $(PKGCFG_L) -ljabber
 
 
 all: lurch
@@ -47,7 +47,7 @@ lurch: $(SDIR)/lurch.c axc libomemo $(BDIR)
 	gcc -fPIC -shared $(CFLAGS) $(BDIR)/lurch.o $(FILES) -o $(BDIR)/lurch.so $(LFLAGS)
 	
 install: $(BDIR)/lurch.so
-	mv $(BDIR)/lurch.so $(PURPLE_PLUGIN_DIR)
+	cp $(BDIR)/lurch.so $(PURPLE_PLUGIN_DIR)/lurch.so
 
 .PHONY: clean
 clean:
