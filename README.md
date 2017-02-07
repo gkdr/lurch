@@ -1,5 +1,5 @@
 # lurch
-In German, an Axolotl is a type of Lurch. This plugin brings Axolotl, by now renamed to double ratchet, to libpurple applications such as [Pidgin](https://www.pidgin.im/) by implementing [OMEMO](https://conversations.im/omemo/).
+/lʊʁç/. In German, an Axolotl is a type of Lurch. This plugin brings Axolotl, by now renamed to double ratchet, to libpurple applications such as [Pidgin](https://www.pidgin.im/) by implementing [OMEMO](https://conversations.im/omemo/).
 
 (Plus I thought the word sounds funny, especially when pronounced by a speaker of English.)
 
