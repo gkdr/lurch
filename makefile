@@ -47,6 +47,7 @@ lurch: $(SDIR)/lurch.c axc libomemo $(BDIR)
 	gcc -fPIC -shared $(CFLAGS) $(BDIR)/lurch.o $(FILES) -o $(BDIR)/lurch.so $(LFLAGS)
 	
 install: $(BDIR)/lurch.so
+	mkdir -p $(PURPLE_PLUGIN_DIR)
 	cp $(BDIR)/lurch.so $(PURPLE_PLUGIN_DIR)/lurch.so
 
 .PHONY: clean
