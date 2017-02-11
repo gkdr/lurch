@@ -19,10 +19,10 @@ It only uses libpurple functions, so if they are implemented in the client corre
 That being said, indicating encrypted chats by setting the topic does not seem to work in Finch (maybe just because window titles are very short). The encryption itself does work though, which you can confirm by looking at the sent/received messages in the debug log.
 
 ## Installation
-1. Install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libsqlite3-dev`, `libgcrypt20-dev`)
+1. Install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libxml2-dev`, `libsqlite3-dev`, `libgcrypt20-dev`)
 1. `git clone https://github.com/gkdr/lurch/`
 2. `cd lurch`
-3. `git submodule update --init`
+3. `git submodule update --init` (If you just pull a newer version, remember to also update the submodules as they might have changed!)
 4. `make`
 5. A final `make install` should copy the compiled plugin into your libpurple plugin dir.
 6. The next time you start Pidgin (or another libpurple client), you should be able to activate it in the "Plugins" window.

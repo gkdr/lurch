@@ -169,6 +169,7 @@ static void lurch_queued_msg_destroy(lurch_queued_msg * qmsg_p) {
     g_list_free_full(qmsg_p->recipient_addr_l_p, free);
     g_hash_table_destroy(qmsg_p->sess_handled_p);
     (void) sem_close(qmsg_p->mutex_p);
+    g_free(qmsg_p->mutex_name);
     free(qmsg_p);
   }
 }

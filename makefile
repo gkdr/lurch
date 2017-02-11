@@ -11,40 +11,45 @@ LOMEMO_DIR=$(LDIR)/libomemo
 LOMEMO_SRC=$(LOMEMO_DIR)/src
 LOMEMO_BUILD=$(LOMEMO_DIR)/build
 LOMEMO_FILES=$(LOMEMO_BUILD)/libomemo.o $(LOMEMO_BUILD)/libomemo_storage.o $(LOMEMO_BUILD)/libomemo_crypto.o
+LOMEMO_PATH=$(LOMEMO_BUILD)/libomemo-conversations.a
 
 AXC_DIR=$(LDIR)/axc
 AXC_SRC=$(AXC_DIR)/src
 AXC_BUILD=$(AXC_DIR)/build
 AXC_FILES=$(AXC_BUILD)/axc.o $(AXC_BUILD)/axc_store.o $(AXC_BUILD)/axc_crypto.o
+AXC_PATH=$(AXC_BUILD)/libaxc.a
 
 AX_DIR=$(AXC_DIR)/lib/libaxolotl-c
+AX_PATH=$(AX_DIR)/build/src/libaxolotl-c.a
 
-FILES=$(LOMEMO_FILES) $(AXC_FILES) $(AX_DIR)/build/src/libaxolotl-c.a
+FILES=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
 
 HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
 
 PKGCFG_C=$(shell pkg-config --cflags glib-2.0 purple)  $(shell xml2-config --cflags)
 PKGCFG_L=$(shell pkg-config --libs purple glib-2.0 sqlite3 mxml) $(shell xml2-config --libs) -L$(shell pkg-config --variable=plugindir purple) $(shell libgcrypt-config --libs)
 
-CFLAGS=-std=c11 -Wall -Wstrict-overflow -D_XOPEN_SOURCE=700 -D_BSD_SOURCE $(PKGCFG_C) $(HEADERS)
+CFLAGS=-std=c11 -Wall -g -Wstrict-overflow -D_XOPEN_SOURCE=700 -D_BSD_SOURCE $(PKGCFG_C) $(HEADERS)
 LFLAGS=-pthread -ldl -lm $(PKGCFG_L) -ljabber
 
 
-all: lurch
+all: $(BDIR)/lurch.so
 
 $(BDIR):
 	mkdir -p build
 	
-axc: $(AXC_SRC)
+$(AX_PATH):
 	cd $(AXC_DIR)/lib/libaxolotl-c/ && mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug .. && make
-	cd $(AXC_DIR) && make axc-pic
-
-libomemo: $(LOMEMO_SRC)
-	cd $(LOMEMO_DIR) && make libomemo-conversations-pic
 	
-lurch: $(SDIR)/lurch.c axc libomemo $(BDIR)
+$(AXC_PATH):
+	cd $(AXC_DIR) && make
+	
+$(LOMEMO_PATH):
+	cd $(LOMEMO_DIR) && make
+	
+$(BDIR)/lurch.so: $(SDIR)/lurch.c $(AX_PATH) $(AXC_PATH) $(LOMEMO_PATH) $(BDIR)
 	gcc $(CFLAGS) -fPIC -c $(SDIR)/lurch.c -o $(BDIR)/lurch.o
-	gcc -fPIC -shared $(CFLAGS) $(BDIR)/lurch.o $(FILES) -o $(BDIR)/lurch.so $(LFLAGS)
+	gcc -fPIC -shared $(CFLAGS) $(BDIR)/lurch.o $(FILES) -o $@ $(LFLAGS)
 	
 install: $(BDIR)/lurch.so
 	mkdir -p $(PURPLE_PLUGIN_DIR)
