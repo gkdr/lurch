@@ -2376,7 +2376,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
     msg = g_strdup("The following commands exist to interact with the lurch plugin:\n\n"
                    "In conversations with one user:\n"
                    " - '/lurch blacklist add': Adds conversation partner to blacklist.\n"
-                   " - '/lurch blacklist remove': Romves conversaiton partner from blacklist.\n"
+                   " - '/lurch blacklist remove': Removes conversation partner from blacklist.\n"
                    " - '/lurch show id own': Displays this device's ID.\n"
                    " - '/lurch show id list': Displays this account's devicelist.\n"
                    " - '/lurch show fp own': Displays this device's key fingerprint.\n"
