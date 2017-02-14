@@ -2169,6 +2169,10 @@ cleanup:
 }
 
 static void lurch_conv_created_cb(PurpleConversation * conv_p) {
+  if (strncmp(purple_account_get_protocol_id(purple_conversation_get_account(conv_p)), JABBER_PROTOCOL_ID, strlen(JABBER_PROTOCOL_ID))) {
+    return;
+  }
+
   if (purple_conversation_get_type(conv_p) == 1) {
     lurch_topic_update_im(conv_p);
   } else if (purple_conversation_get_type(conv_p) == 2) {
@@ -2177,6 +2181,10 @@ static void lurch_conv_created_cb(PurpleConversation * conv_p) {
 }
 
 static void lurch_conv_updated_cb(PurpleConversation * conv_p, PurpleConvUpdateType type) {
+  if (strncmp(purple_account_get_protocol_id(purple_conversation_get_account(conv_p)), JABBER_PROTOCOL_ID, strlen(JABBER_PROTOCOL_ID))) {
+    return;
+  }
+
   if (type == 11) {
     if (!topic_changed) {
       topic_changed = 1;

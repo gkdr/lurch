@@ -28,7 +28,7 @@ PKGCFG_C=$(shell pkg-config --cflags glib-2.0 purple)  $(shell xml2-config --cfl
 PKGCFG_L=$(shell pkg-config --libs purple glib-2.0 sqlite3 mxml) $(shell xml2-config --libs) -L$(shell pkg-config --variable=plugindir purple) $(shell libgcrypt-config --libs)
 
 CFLAGS=-std=c11 -Wall -g -Wstrict-overflow -D_XOPEN_SOURCE=700 -D_BSD_SOURCE $(PKGCFG_C) $(HEADERS)
-LFLAGS=-pthread -ldl -lm $(PKGCFG_L) -ljabber
+LFLAGS= -ldl -lm $(PKGCFG_L) -ljabber
 
 
 all: $(BDIR)/lurch.so
