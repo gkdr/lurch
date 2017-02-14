@@ -2,11 +2,8 @@
 
 #include <glib.h>
 
-#include <fcntl.h>
 #include <inttypes.h>
-#include <semaphore.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <time.h>
 
 #include "account.h"
@@ -65,11 +62,7 @@ typedef struct lurch_queued_msg {
   GList * recipient_addr_l_p;
   GList * no_sess_l_p;
   GHashTable * sess_handled_p;
-  char * mutex_name;
-  sem_t * mutex_p;
 } lurch_queued_msg;
-
-sem_t * db_mutex_p;
 
 omemo_crypto_provider crypto = {
     .random_bytes_func = omemo_default_crypto_random_bytes,
@@ -84,7 +77,6 @@ PurpleCmdId lurch_cmd_id = 0;
 
 // key: char * (name of muc), value: GHashTable * (mapping of user alias to full jid)
 GHashTable * chat_users_ht_p = (void *) 0;
-sem_t * chat_users_ht_mutex_p;
 
 static void lurch_addr_list_destroy_func(gpointer data) {
   lurch_addr * addr_p = (lurch_addr *) data;
@@ -112,8 +104,6 @@ static int lurch_queued_msg_create(omemo_message * om_msg_p,
   char * err_msg_dbg = (void *) 0;
 
   lurch_queued_msg * qmsg_p = (void *) 0;
-  char * mutex_name = (void *) 0;
-  sem_t * mutex_p = (void *) 0;
   GHashTable * sess_handled_p = (void *) 0;
 
   qmsg_p = malloc(sizeof(lurch_queued_msg));
@@ -122,17 +112,6 @@ static int lurch_queued_msg_create(omemo_message * om_msg_p,
     err_msg_dbg = g_strdup_printf("failed to malloc space for queued msg struct");
     goto cleanup;
   }
-
-  mutex_name = g_strdup_printf("/%i", g_random_int());
-  qmsg_p->mutex_name = mutex_name;
-
-  mutex_p = sem_open(mutex_name, O_CREAT, S_IRUSR | S_IWUSR, 1);
-  if (!mutex_p) {
-    ret_val = LURCH_ERR;
-    err_msg_dbg = g_strdup_printf("failed to open mutex");
-    goto cleanup;
-  }
-  qmsg_p->mutex_p = mutex_p;
 
   sess_handled_p = g_hash_table_new(g_str_hash, g_str_equal);
 
@@ -146,8 +125,6 @@ static int lurch_queued_msg_create(omemo_message * om_msg_p,
 cleanup:
   if (ret_val) {
     free(qmsg_p);
-    g_free(mutex_name);
-    (void) sem_close(mutex_p);
   }
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
@@ -168,8 +145,6 @@ static void lurch_queued_msg_destroy(lurch_queued_msg * qmsg_p) {
     omemo_message_destroy(qmsg_p->om_msg_p);
     g_list_free_full(qmsg_p->recipient_addr_l_p, free);
     g_hash_table_destroy(qmsg_p->sess_handled_p);
-    (void) sem_close(qmsg_p->mutex_p);
-    g_free(qmsg_p->mutex_name);
     free(qmsg_p);
   }
 }
@@ -706,7 +681,6 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
   char * recipient = (void *) 0;
   xmlnode * pubsub_node_p = (void *) 0;
   xmlnode * items_node_p = (void *) 0;
-  int sem_db_waiting = 0;
   int msg_handled = 0;
   char * addr_key = (void *) 0;
   char * msg_xml = (void *) 0;
@@ -755,13 +729,6 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
       goto cleanup;
     }
 
-    ret_val = sem_wait(db_mutex_p);
-    if (ret_val) {
-      err_msg_dbg = "failed to wait on the db mutex";
-      goto cleanup;
-    }
-    sem_db_waiting = 1;
-
     ret_val = axc_session_exists_initiated(&addr, axc_ctx_p);
     if (!ret_val) {
       ret_val = lurch_bundle_create_session(uname, from, items_node_p, axc_ctx_p);
@@ -773,13 +740,6 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
       err_msg_dbg = "failed to check if session exists";
       goto cleanup;
     }
-
-    ret_val = sem_post(db_mutex_p);
-    if (ret_val) {
-      err_msg_dbg = "failed to post the db mutex";
-      goto cleanup;
-    }
-    sem_db_waiting = 0;
   }
 
   addr_key = lurch_queue_make_key_string_s(from, device_id_str);
@@ -789,22 +749,10 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
     goto cleanup;
   }
 
-  ret_val = sem_wait(qmsg_p->mutex_p);
-  if (ret_val) {
-    err_msg_dbg = "failed to wait on the qmsg mutex";
-    goto cleanup;
-  }
-
   (void) g_hash_table_replace(qmsg_p->sess_handled_p, addr_key, addr_key);
 
   if (lurch_queued_msg_is_handled(qmsg_p)) {
     msg_handled = 1;
-  }
-
-  ret_val = sem_post(qmsg_p->mutex_p);
-  if (ret_val) {
-    err_msg_dbg = "failed to post the qmsg mutex";
-    goto cleanup;
   }
 
   if (msg_handled) {
@@ -843,9 +791,6 @@ cleanup:
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
   }
 
-  if (sem_db_waiting) {
-    (void) sem_post(db_mutex_p);
-  }
   free(uname);
   g_strfreev(split);
   axc_context_destroy_all(axc_ctx_p);
@@ -1660,7 +1605,6 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
   int ret_val = 0;
   char * err_msg_dbg = (void *) 0;
   int len;
-  int sem_waiting = 0;
 
   char * uname = (void *) 0;
   char * db_fn_omemo = (void *) 0;
@@ -1724,13 +1668,6 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
 
   chat_p = purple_conversation_get_chat_data(conv_p);
 
-  ret_val = sem_wait(chat_users_ht_mutex_p);
-  if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to wait on sem");
-    goto cleanup;
-  }
-  sem_waiting = 1;
-
   nick_jid_ht_p = g_hash_table_lookup(chat_users_ht_p, purple_conversation_get_name(conv_p));
   if (!nick_jid_ht_p) {
     err_msg_dbg = g_strdup_printf("no entry in ht for %s!\n", purple_conversation_get_name(conv_p));
@@ -1775,12 +1712,6 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
     omemo_devicelist_destroy(curr_dl_p);
     curr_dl_p = (void *) 0;
   }
-  ret_val = sem_post(chat_users_ht_mutex_p);
-  if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to post sem");
-    goto cleanup;
-  }
-  sem_waiting = 0;
 
   ret_val = lurch_msg_finalize_encryption(purple_connection_get_protocol_data(gc_p), axc_ctx_p, om_msg_p, addr_l_p, msg_stanza_pp);
   if (ret_val) {
@@ -1801,9 +1732,6 @@ cleanup:
   if (ret_val) {
     omemo_message_destroy(om_msg_p);
     g_list_free_full(addr_l_p, lurch_addr_list_destroy_func);
-  }
-  if(sem_waiting) {
-    (void) sem_post(chat_users_ht_mutex_p);
   }
 
   free(uname);
@@ -1836,8 +1764,6 @@ static void lurch_xml_sent_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp) {
 }
 
 static void lurch_presence_handle(PurpleConnection * gc_p, xmlnode ** presence_stanza_pp) {
-  int ret_val = 0;
-
   xmlnode * x_node_p = (void *) 0;
   xmlnode * item_node_p = (void *) 0;
 
@@ -1877,11 +1803,6 @@ static void lurch_presence_handle(PurpleConnection * gc_p, xmlnode ** presence_s
   room_name = split[0];
   buddy_nick = split[1];
 
-  ret_val = sem_wait(chat_users_ht_mutex_p);
-  if (ret_val) {
-    goto cleanup;
-  }
-
   nick_jid_ht_p = g_hash_table_lookup(chat_users_ht_p, room_name);
   if (!nick_jid_ht_p) {
     nick_jid_ht_p = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
@@ -1892,11 +1813,6 @@ static void lurch_presence_handle(PurpleConnection * gc_p, xmlnode ** presence_s
 
   if (write_to_chat_ht) {
     (void) g_hash_table_insert(chat_users_ht_p, room_name, nick_jid_ht_p);
-  }
-
-  ret_val = sem_post(chat_users_ht_mutex_p);
-  if (ret_val) {
-    goto cleanup;
   }
 
 cleanup:
@@ -1966,18 +1882,8 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
       purple_conv_present_error(room_name, purple_connection_get_account(gc_p), "Received encrypted message in non-OMEMO room.");;
     }
 
-    ret_val = sem_wait(chat_users_ht_mutex_p);
-    if (ret_val) {
-      goto cleanup;
-    }
-
     nick_jid_ht_p = g_hash_table_lookup(chat_users_ht_p, room_name);
     sender = g_strdup(g_hash_table_lookup(nick_jid_ht_p, buddy_nick));
-
-    ret_val = sem_post(chat_users_ht_mutex_p);
-    if (ret_val) {
-      goto cleanup;
-    }
   }
 
   ret_val = omemo_message_prepare_decryption(xmlnode_to_str(*msg_stanza_pp, &len), &msg_p);
@@ -2660,20 +2566,6 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
   char * dl_ns = (void *) 0;
   void * jabber_handle_p = (void *) 0;
 
-  db_mutex_p = sem_open("/db_mutex", O_CREAT, S_IRUSR | S_IWUSR, 1);
-  if (!db_mutex_p) {
-    err_msg_dbg = "failed to open db mutex";
-    ret_val = LURCH_ERR;
-    goto cleanup;
-  }
-
-  chat_users_ht_mutex_p = sem_open("/chat_users_ht_mutex", O_CREAT, S_IRUSR | S_IWUSR, 1);
-  if (!chat_users_ht_mutex_p) {
-    err_msg_dbg = "failed to open ht mutex";
-    ret_val = -1;
-    goto cleanup;
-  }
-
   chat_users_ht_p = g_hash_table_new_full(g_str_hash, g_str_equal, free, (void *) 0);
 
   // init openssl
@@ -2714,8 +2606,6 @@ cleanup:
   if (ret_val) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
     omemo_default_crypto_teardown();
-    sem_close(db_mutex_p);
-    sem_close(chat_users_ht_mutex_p);
     g_hash_table_destroy(chat_users_ht_p);
     return FALSE;
   }
@@ -2724,8 +2614,6 @@ cleanup:
 }
 
 static gboolean lurch_plugin_unload(PurplePlugin * plugin_p) {
-  sem_close(db_mutex_p);
-  sem_close(chat_users_ht_mutex_p);
   //g_hash_table_destroy(chat_users_ht_p);
   omemo_default_crypto_teardown();
 

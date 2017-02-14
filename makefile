@@ -10,14 +10,12 @@ HDIR=./headers
 LOMEMO_DIR=$(LDIR)/libomemo
 LOMEMO_SRC=$(LOMEMO_DIR)/src
 LOMEMO_BUILD=$(LOMEMO_DIR)/build
-LOMEMO_FILES=$(LOMEMO_BUILD)/libomemo.o $(LOMEMO_BUILD)/libomemo_storage.o $(LOMEMO_BUILD)/libomemo_crypto.o
 LOMEMO_PATH=$(LOMEMO_BUILD)/libomemo-conversations.a
 
 AXC_DIR=$(LDIR)/axc
 AXC_SRC=$(AXC_DIR)/src
 AXC_BUILD=$(AXC_DIR)/build
-AXC_FILES=$(AXC_BUILD)/axc.o $(AXC_BUILD)/axc_store.o $(AXC_BUILD)/axc_crypto.o
-AXC_PATH=$(AXC_BUILD)/libaxc.a
+AXC_PATH=$(AXC_BUILD)/libaxc-nt.a
 
 AX_DIR=$(AXC_DIR)/lib/libaxolotl-c
 AX_PATH=$(AX_DIR)/build/src/libaxolotl-c.a
@@ -42,10 +40,10 @@ $(AX_PATH):
 	cd $(AXC_DIR)/lib/libaxolotl-c/ && mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug .. && make
 	
 $(AXC_PATH):
-	cd $(AXC_DIR) && make
+	cd $(AXC_DIR) && make build/libaxc-nt.a
 	
 $(LOMEMO_PATH):
-	cd $(LOMEMO_DIR) && make
+	cd $(LOMEMO_DIR) && make build/libomemo-conversations.a
 	
 $(BDIR)/lurch.so: $(SDIR)/lurch.c $(AX_PATH) $(AXC_PATH) $(LOMEMO_PATH) $(BDIR)
 	gcc $(CFLAGS) -fPIC -c $(SDIR)/lurch.c -o $(BDIR)/lurch.o
