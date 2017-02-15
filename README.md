@@ -15,6 +15,7 @@
 
 ### Windows
 Thanks to EionRobb, Windows users can use the dlls he compiled and provides here: https://eion.robbmob.com/lurch/
+If you want to talk to other OMEMO clients, you should use _lurch-compat.dll_. Do not forget to put the other .dlls in your libpurple path, they are needed for the crypto.
 
 ### More
 The current version of libpurple does not come with [Message Carbons](https://xmpp.org/extensions/xep-0280.html) support, i.e. if you have multiple devices, your Pidgin might not receive that message, and if you write messages on other devices, you do not see them either.
