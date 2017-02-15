@@ -3,22 +3,8 @@
 
 (Plus I thought the word sounds funny, especially when pronounced by a speaker of English.)
 
-## Can it talk to other OMEMO clients?
-__Yes__, it was (briefly) tested with:
-* [Conversations](https://conversations.im/)
-* [The gajim OMEMO plugin](https://dev.gajim.org/gajim/gajim-plugins/wikis/OmemoGajimPlugin)
-* [Mancho's libpurple plugin](https://git.imp.fu-berlin.de/mancho/libpurple-omemo-plugin)
-
-## Do encrypted group chats work?
-Yes.
-
-## Does it work in Finch?
-Mostly, but I only tried it briefly.
-
-It only uses libpurple functions, so if they are implemented in the client correctly, they should work.
-That being said, indicating encrypted chats by setting the topic does not seem to work in Finch (maybe just because window titles are very short). The encryption itself does work though, which you can confirm by looking at the sent/received messages in the debug log.
-
 ## Installation
+### Linux (and MacOS?)
 1. Install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libxml2-dev`, `libsqlite3-dev`, `libgcrypt20-dev`)
 1. `git clone https://github.com/gkdr/lurch/`
 2. `cd lurch`
@@ -26,6 +12,15 @@ That being said, indicating encrypted chats by setting the topic does not seem t
 4. `make`
 5. A final `make install` should copy the compiled plugin into your libpurple plugin dir.
 6. The next time you start Pidgin (or another libpurple client), you should be able to activate it in the "Plugins" window.
+
+### Windows
+Thanks to EionRobb, Windows users can use the dlls he compiled and provides here: https://eion.robbmob.com/lurch/
+
+### More
+The current version of libpurple does not come with [Message Carbons](https://xmpp.org/extensions/xep-0280.html) support, i.e. if you have multiple devices, your Pidgin might not receive that message, and if you write messages on other devices, you do not see them either.
+
+Lucky for you, I wrote another plugin to fix this! You can find it here: https://github.com/gkdr/carbons
+Be aware that both are really experimental and might not work well, especially not together.
 
 ## Usage
 This plugin will set the window title to notify the user if encryption is enabled or not. If it is, it will generally not send plaintext messages. If a plaintext message is received in a chat that is supposed to be encrypted, the user will be warned.
@@ -39,8 +34,24 @@ Additionally, the room has to be set to non-anonymous so that the full JID of ev
 
 More information on the available commands can be found by typing `/lurch help` in any conversation window.
 
-## Caveats
-libpurple does not have support for Carbons or MAM, both used to deliver functionality that the OMEMO protocol can do in theory, which is messages to multiple devices and catchup with messages that were sent while a device was offline.
-It should not be hard to fix but should be rather done on libpurple's side. I'm looking into it.
+## Answers
+### Can it talk to other OMEMO clients?
+__Yes__, it was (briefly) tested with:
+* [Conversations](https://conversations.im/)
+* [The gajim OMEMO plugin](https://dev.gajim.org/gajim/gajim-plugins/wikis/OmemoGajimPlugin)
+* [Mancho's libpurple plugin](https://git.imp.fu-berlin.de/mancho/libpurple-omemo-plugin)
 
-Of course this plugin is _highly experimental_, so you should not trust your life on it.
+### Do encrypted group chats work?
+Yes.
+
+### Does it work in Finch?
+Mostly, but I only tried it briefly.
+
+It only uses libpurple functions, so if they are implemented in the client correctly, they should work.
+That being said, indicating encrypted chats by setting the topic does not seem to work in Finch (maybe just because window titles are very short). The encryption itself does work though, which you can confirm by looking at the sent/received messages in the debug log.
+
+## Caveats
+If you don't install the additional plugin mentioned above, this is probably not the right thing to use if you have multiple clients running at the same time, as there is no message carbons support in libpurple as of now.
+MAM for "catchup" and offline messages is also not supported by libpurple.
+
+Again: This plugin is _highly experimental_, so you should not trust your life on it.
