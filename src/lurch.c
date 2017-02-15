@@ -1848,6 +1848,9 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
   char * room_name = (void *) 0;
   char * buddy_nick = (void *) 0;
   GHashTable * nick_jid_ht_p = (void *) 0;
+  xmlnode * plaintext_msg_node_p = (void *) 0;
+  char * recipient_bare_jid = (void *) 0;
+  PurpleConversation * conv_p = (void *) 0;
 
   const char * type = xmlnode_get_attrib(*msg_stanza_pp, "type");
   const char * from = xmlnode_get_attrib(*msg_stanza_pp, "from");
@@ -1966,7 +1969,21 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     goto cleanup;
   }
 
-  *msg_stanza_pp = xmlnode_from_str(xml, -1);
+  plaintext_msg_node_p = xmlnode_from_str(xml, -1);
+
+  if (g_strcmp0(sender, uname)) {
+    *msg_stanza_pp = plaintext_msg_node_p;
+  } else {
+    if (!g_strcmp0(type, "chat")) {
+      recipient_bare_jid = jabber_get_bare_jid(xmlnode_get_attrib(*msg_stanza_pp, "to"));
+      conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, sender, purple_connection_get_account(gc_p));
+      if (!conv_p) {
+        conv_p = purple_conversation_new(PURPLE_CONV_TYPE_IM, purple_connection_get_account(gc_p), recipient_bare_jid);;
+      }
+      purple_conversation_write(conv_p, uname, xmlnode_get_data(xmlnode_get_child(plaintext_msg_node_p, "body")), PURPLE_MESSAGE_SEND, time((void *) 0));
+      *msg_stanza_pp = (void *) 0;
+    }
+  }
 
 cleanup:
   if (err_msg_dbg) {
@@ -1986,6 +2003,7 @@ cleanup:
   axc_context_destroy_all(axc_ctx_p);
   free(uname);
   free(db_fn_omemo);
+  free(recipient_bare_jid);
   omemo_message_destroy(keytransport_msg_p);
   omemo_message_destroy(msg_p);
 }
@@ -2598,7 +2616,7 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
   // register handlers
   jabber_handle_p = purple_plugins_find_with_id(JABBER_PROTOCOL_ID);
 
-  (void) purple_signal_connect(jabber_handle_p, "jabber-receiving-xmlnode", plugin_p, PURPLE_CALLBACK(lurch_xml_received_cb), NULL);
+  (void) purple_signal_connect_priority(jabber_handle_p, "jabber-receiving-xmlnode", plugin_p, PURPLE_CALLBACK(lurch_xml_received_cb), NULL, PURPLE_PRIORITY_HIGHEST);
   (void) purple_signal_connect(jabber_handle_p, "jabber-sending-xmlnode", plugin_p, PURPLE_CALLBACK(lurch_xml_sent_cb), NULL);
 
   jabber_pep_register_handler(dl_ns, lurch_pep_devicelist_event_handler);
@@ -2640,7 +2658,7 @@ static PurplePluginInfo info = {
 
     "core-riba-lurch",
     "lurch",
-    "0.5",
+    "0.6.0",
 
     "Implements OMEMO for libpurple.",
     "End-to-end encryption using the Signal protocol, adapted for XMPP.",
