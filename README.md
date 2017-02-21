@@ -10,7 +10,7 @@
 2. `cd lurch`
 3. `git submodule update --init` (If you just pull a newer version, remember to also update the submodules as they might have changed!)
 4. `make`
-5. A final `make install` should copy the compiled plugin into your libpurple plugin dir.
+5. A final `make install-home` should copy the compiled plugin into your libpurple plugin dir.
 6. The next time you start Pidgin (or another libpurple client), you should be able to activate it in the "Plugins" window.
 
 ### Windows

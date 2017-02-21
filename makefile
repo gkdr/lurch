@@ -1,6 +1,40 @@
-PURPLE_PLUGIN_DIR=~/.purple/plugins
-PIDGIN_DIR=./pidgin-2.11.0
-PURPLE_PLUGIN_SRC_DIR=$(PIDGIN_DIR)/libpurple/plugins
+### toolchain
+#
+CC ?= gcc
+PKG_CONFIG ?= pkg-config
+XML2_CONFIG ?= xml2-config
+LIBGCRYPT_CONFIG ?= libgcrypt-config
+MKDIR = mkdir
+MKDIR_P = mkdir -p
+INSTALL = install
+INSTALL_LIB = $(INSTALL) -m 755
+INSTALL_DIR = $(INSTALL) -d -m 755
+RM = rm
+RM_RF = $(RM) -rf
+CMAKE ?= cmake
+CMAKE_FLAGS = -DCMAKE_BUILD_TYPE=Debug
+
+
+### flags
+#
+PKGCFG_C=$(shell $(PKG_CONFIG) --cflags glib-2.0 purple) \
+		 $(shell $(XML2_CONFIG) --cflags)
+
+PKGCFG_L=$(shell $(PKG_CONFIG) --libs purple glib-2.0 sqlite3 mxml) \
+		 $(shell $(XML2_CONFIG) --libs) \
+		 -L$(shell $(PKG_CONFIG) --variable=plugindir purple) \
+		 $(shell $(LIBGCRYPT_CONFIG) --libs)
+
+HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
+CFLAGS += -std=c11 -Wall -g -Wstrict-overflow $(PKGCFG_C) $(HEADERS)
+CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE
+LDFLAGS += -ldl -lm $(PKGCFG_L) -ljabber
+
+
+### directories
+#
+PURPLE_HOME_PLUGIN_DIR=$(HOME)/.purple/plugins
+PURPLE_PLUGIN_DIR = $(shell $(PKG_CONFIG) --variable=plugindir purple)
 
 LDIR=./lib
 BDIR=./build
@@ -22,40 +56,51 @@ AX_PATH=$(AX_DIR)/build/src/libaxolotl-c.a
 
 FILES=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
 
-HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
 
-PKGCFG_C=$(shell pkg-config --cflags glib-2.0 purple)  $(shell xml2-config --cflags)
-PKGCFG_L=$(shell pkg-config --libs purple glib-2.0 sqlite3 mxml) $(shell xml2-config --libs) -L$(shell pkg-config --variable=plugindir purple) $(shell libgcrypt-config --libs)
-
-CFLAGS=-std=c11 -Wall -g -Wstrict-overflow -D_XOPEN_SOURCE=700 -D_BSD_SOURCE $(PKGCFG_C) $(HEADERS)
-LFLAGS= -ldl -lm $(PKGCFG_L) -ljabber
-
-
+### make rules
+#
 all: $(BDIR)/lurch.so
 
 $(BDIR):
-	mkdir -p build
-	
-$(AX_PATH):
-	cd $(AXC_DIR)/lib/libaxolotl-c/ && mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug .. && make
-	
-$(AXC_PATH):
-	cd $(AXC_DIR) && make build/libaxc-nt.a
-	
-$(LOMEMO_PATH):
-	cd $(LOMEMO_DIR) && make build/libomemo-conversations.a
-	
-$(BDIR)/lurch.so: $(SDIR)/lurch.c $(AX_PATH) $(AXC_PATH) $(LOMEMO_PATH) $(BDIR)
-	gcc $(CFLAGS) -fPIC -c $(SDIR)/lurch.c -o $(BDIR)/lurch.o
-	gcc -fPIC -shared $(CFLAGS) $(BDIR)/lurch.o $(FILES) -o $@ $(LFLAGS)
-	
-install: $(BDIR)/lurch.so
-	mkdir -p $(PURPLE_PLUGIN_DIR)
-	cp $(BDIR)/lurch.so $(PURPLE_PLUGIN_DIR)/lurch.so
+	$(MKDIR_P) build
 
-.PHONY: clean
+$(AX_PATH):
+	cd $(AXC_DIR)/lib/libaxolotl-c/ && \
+	   $(MKDIR_P) build && \
+	   cd build && \
+	   $(CMAKE) $(CMAKE_FLAGS) .. \
+	   && $(MAKE)
+
+$(AXC_PATH):
+	$(MAKE) -C "$(AXC_DIR)" build/libaxc-nt.a
+
+$(LOMEMO_PATH):
+	$(MAKE) -C "$(LOMEMO_DIR)" build/libomemo-conversations.a
+
+$(BDIR)/lurch.so: $(SDIR)/lurch.c $(AX_PATH) $(AXC_PATH) $(LOMEMO_PATH) $(BDIR)
+	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) \
+		-c "$(SDIR)/lurch.c" \
+		-o "$(BDIR)/lurch.o"
+	$(CC) -fPIC -shared $(CFLAGS) $(CPPFLAGS) \
+		"$(BDIR)/lurch.o" $(FILES) \
+		-o $@ $(LDFLAGS)
+
+install: $(BDIR)/lurch.so
+	[ -e "$(DESTDIR)/$(PURPLE_PLUGIN_DIR)" ] || \
+		$(INSTALL_DIR) "$(DESTDIR)/$(PURPLE_PLUGIN_DIR)"
+	$(INSTALL_LIB) "$(BDIR)/lurch.so" "$(DESTDIR)/$(PURPLE_PLUGIN_DIR)/lurch.so"
+
+install-home: $(BDIR)/lurch.so
+	[ -e "$(PURPLE_HOME_PLUGIN_DIR)" ] || \
+		$(INSTALL_DIR) "$(PURPLE_HOME_PLUGIN_DIR)"
+	$(INSTALL_LIB) "$(BDIR)/lurch.so" "$(PURPLE_HOME_PLUGIN_DIR)/lurch.so"
+
 clean:
-	rm -rf $(LOMEMO_BUILD)
-	rm -rf $(AXC_BUILD)
-	rm -rf $(AX_DIR)/build
-	rm -rf $(BDIR)
+	$(RM_RF) "$(BDIR)"
+
+clean-all: clean
+	$(MAKE) -C "$(LOMEMO_DIR)" clean
+	$(MAKE) -C "$(AXC_DIR)" clean
+
+.PHONY: clean clean-all install install-home
+
