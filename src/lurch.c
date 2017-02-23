@@ -1688,7 +1688,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
     if (!g_strcmp0(curr_buddy_jid, uname)) {
       body_node_p = xmlnode_get_child(*msg_stanza_pp, "body");
 
-      purple_conv_chat_write(chat_p, curr_buddy_p->name, xmlnode_get_data(body_node_p), 0x0001, time((void *) 0));
+      purple_conv_chat_write(chat_p, curr_buddy_p->name, xmlnode_get_data(body_node_p), PURPLE_MESSAGE_SEND, time((void *) 0));
       continue;
     }
 
@@ -1743,6 +1743,7 @@ cleanup:
 
 static void lurch_xml_sent_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp) {
   xmlnode * body_node_p = (void *) 0;
+  xmlnode * encrypted_node_p = (void *) 0;
   char * node_name = (*stanza_pp)->name;
   const char * type = xmlnode_get_attrib(*stanza_pp, "type");
 
@@ -1755,6 +1756,12 @@ static void lurch_xml_sent_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp) {
     if (!body_node_p) {
       return;
     }
+
+    encrypted_node_p = xmlnode_get_child(*stanza_pp, "encrypted");
+    if (encrypted_node_p) {
+      return;
+    }
+
     if (!g_strcmp0(type, "chat")) {
       lurch_message_encrypt_im(gc_p, stanza_pp);
     } else if (!g_strcmp0(type, "groupchat")) {
@@ -2218,6 +2225,36 @@ static void lurch_conv_updated_cb(PurpleConversation * conv_p, PurpleConvUpdateT
   }
 }
 
+/**
+ * Creates a fingerprint which resembles the one displayed by Conversations etc.
+ * Also useful for avoiding the smileys produced by ':d'...
+ *
+ * @param fp The fingerprint string as returned by purple_base16_encode_chunked
+ * @return A newly allocated string which contains the fingerprint in printable format, or NULL.
+ */
+static char * lurch_fp_printable(const char * fp) {
+  char ** split = (void *) 0;
+  char * temp1 = (void *) 0;
+  char * temp2 = (void *) 0;
+
+  if (!fp) {
+    return (void *) 0;
+  }
+
+  split = g_strsplit(fp, ":", 0);
+  temp2 = g_strdup("");
+
+  for (int i = 1; i <= 32; i += 4) {
+    temp1 = g_strconcat(temp2, split[i], split[i+1], split[i+2], split[i+3], " ", NULL);
+    g_free(temp2);
+    temp2 = g_strdup(temp1);
+    g_free(temp1);
+  }
+
+  g_strfreev(split);
+  return temp2;
+}
+
 static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
                                    const gchar * cmd,
                                    gchar ** args,
@@ -2233,9 +2270,9 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
   uint32_t remove_id = 0;
   axc_buf * key_buf_p = (void *) 0;
   gchar * fp = (void *) 0;
+  char * fp_printable = (void *) 0;
   omemo_devicelist * own_dl_p = (void *) 0;
   omemo_devicelist * other_dl_p = (void *) 0;
-  omemo_devicelist * new_dl_p = (void *) 0;
   GList * own_l_p = (void *) 0;
   GList * other_l_p = (void *) 0;
   GList * curr_p = (void *) 0;
@@ -2393,8 +2430,9 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
             }
 
             fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
+            fp_printable = lurch_fp_printable(fp);
             msg = g_strdup_printf("This device's fingerprint is:\n%s\n"
-                                  "You should make sure that your conversation partner gets displayed the same for this device.", fp);
+                                  "You should make sure that your conversation partner gets displayed the same for this device.", fp_printable);
           } else if (!g_strcmp0(args[2], "conv")) {
 
             ret_val = axc_key_load_public_own(axc_ctx_p, &key_buf_p);
@@ -2404,9 +2442,10 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
             }
 
             fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
+            fp_printable = lurch_fp_printable(fp);
 
             temp_msg_1 = g_strdup_printf("The devices participating in this conversation and their fingerprints are as follows:\n"
-                                         "This device's (%s:%i) fingerprint:\n%s\n", uname, id, fp);
+                                         "This device's (%s:%i) fingerprint:\n%s\n", uname, id, fp_printable);
 
             ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &own_dl_p);
             if (ret_val) {
@@ -2427,10 +2466,11 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
                 g_free(fp);
                 fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
+                fp_printable = lurch_fp_printable(fp);
                 axc_buf_free(key_buf_p);
                 key_buf_p = (void *) 0;
 
-                temp_msg_2 = g_strdup_printf("%s:%i's fingerprint:\n%s\n", uname, omemo_devicelist_list_data(curr_p), fp);
+                temp_msg_2 = g_strdup_printf("%s:%i's fingerprint:\n%s\n", uname, omemo_devicelist_list_data(curr_p), fp_printable);
                 temp_msg_3 = g_strconcat(temp_msg_1, temp_msg_2, NULL);
                 g_free(temp_msg_1);
                 temp_msg_1 = temp_msg_3;
@@ -2460,10 +2500,11 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
               g_free(fp);
               fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
+              fp_printable = lurch_fp_printable(fp);
               axc_buf_free(key_buf_p);
               key_buf_p = (void *) 0;
 
-              temp_msg_2 = g_strdup_printf("%s:%i's fingerprint:\n%s\n", bare_jid, omemo_devicelist_list_data(curr_p), fp);
+              temp_msg_2 = g_strdup_printf("%s:%i's fingerprint:\n%s\n", bare_jid, omemo_devicelist_list_data(curr_p), fp_printable);
               temp_msg_3 = g_strconcat(temp_msg_1, temp_msg_2, NULL);
               g_free(temp_msg_1);
               temp_msg_1 = temp_msg_3;
@@ -2503,7 +2544,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
                 goto cleanup;
               }
 
-              ret_val = omemo_devicelist_export(new_dl_p, &temp_msg_1);
+              ret_val = omemo_devicelist_export(own_dl_p, &temp_msg_1);
               if (ret_val) {
                 err_msg = g_strdup("Failed to export new devicelist to xml string.");
                 goto cleanup;
@@ -2552,7 +2593,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
   }
 
   if (msg) {
-    purple_conversation_write(conv_p, "lurch", msg, 0x0004 | 0x0040, time((void *) 0));
+    purple_conversation_write(conv_p, "lurch", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time((void *) 0));
   }
 
 cleanup:
@@ -2562,9 +2603,9 @@ cleanup:
   g_free(msg);
   axc_buf_free(key_buf_p);
   g_free(fp);
+  g_free(fp_printable);
   omemo_devicelist_destroy(own_dl_p);
   omemo_devicelist_destroy(other_dl_p);
-  omemo_devicelist_destroy(new_dl_p);
   g_list_free_full(own_l_p, free);
   g_list_free_full(other_l_p, free);
   g_free(temp_msg_1);
@@ -2591,10 +2632,12 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
 
   char * dl_ns = (void *) 0;
   void * jabber_handle_p = (void *) 0;
+  GList * accs_l_p = (void *) 0;
+  GList * curr_p = (void *) 0;
+  PurpleAccount * acc_p = (void *) 0;
 
   chat_users_ht_p = g_hash_table_new_full(g_str_hash, g_str_equal, free, (void *) 0);
 
-  // init openssl
   omemo_default_crypto_init();
 
   ret_val = omemo_devicelist_get_pep_node_name(&dl_ns);
@@ -2605,8 +2648,8 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
 
   lurch_cmd_id = purple_cmd_register("lurch",
                                      "wwws",
-                                     3000,
-                                     0x01 | 0x02 | 0x04 | 0x08,
+                                     PURPLE_CMD_P_PLUGIN,
+                                     PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY | PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS,
                                      JABBER_PROTOCOL_ID,
                                      lurch_cmd_func,
                                      "lurch &lt;help&gt;:  "
@@ -2621,6 +2664,17 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
 
   jabber_pep_register_handler(dl_ns, lurch_pep_devicelist_event_handler);
   jabber_add_feature(dl_ns, jabber_pep_namespace_only_when_pep_enabled_cb);
+
+  // manually call init code if there are already accounts connected, e.g. when plugin is loaded manually
+  accs_l_p = purple_accounts_get_all_active();
+  for (curr_p = accs_l_p; curr_p; curr_p = curr_p->next) {
+    acc_p = (PurpleAccount *) curr_p->data;
+    if (purple_account_is_connected(acc_p)) {
+      if (!g_strcmp0(purple_account_get_protocol_id(acc_p), JABBER_PROTOCOL_ID)) {
+        lurch_account_connect_cb(acc_p);
+      }
+    }
+  }
 
   // register install callback
   (void) purple_signal_connect(purple_accounts_get_handle(), "account-signed-on", plugin_p, PURPLE_CALLBACK(lurch_account_connect_cb), NULL);
@@ -2658,7 +2712,7 @@ static PurplePluginInfo info = {
 
     "core-riba-lurch",
     "lurch",
-    "0.6.0",
+    "0.6.1",
 
     "Implements OMEMO for libpurple.",
     "End-to-end encryption using the Signal protocol, adapted for XMPP.",
