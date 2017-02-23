@@ -15,6 +15,7 @@
 
 ### Windows
 Thanks to EionRobb, Windows users can use the dlls he compiled and provides here: https://eion.robbmob.com/lurch/
+
 1. Download the plugin .dll itself and put it in the `Program Files\Pidgin\plugins` directory. If you want to talk to other OMEMO clients, use _lurch-compat.dll_.
 2. Download _libgcrypt-20.dll_ and _libgpg-error-0.dll_ and put them in `Program Files\Pidgin` directory.
 
