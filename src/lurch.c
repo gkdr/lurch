@@ -2352,7 +2352,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
                    " - '/lurch show fp conv': Displays the fingerprints of all participating devices.\n"
                    " - '/lurch remove id <id>': Removes a device ID from the own devicelist.\n"
                    "\n"
-                   "In conversations with multuple users:\n"
+                   "In conversations with multiple users:\n"
                    " - '/lurch enable': Enables OMEMO encryption for the conversation.\n"
                    " - '/lurch disable': Disables OMEMO encryption for the conversation.\n"
                    "\n"
