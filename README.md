@@ -1,4 +1,4 @@
-# lurch 0.6.1
+# lurch 0.6.2
 /lʊʁç/. In German, an Axolotl is a type of Lurch, which simply means 'amphibian'. This plugin brings Axolotl, by now renamed to double ratchet, to libpurple applications such as [Pidgin](https://www.pidgin.im/) by implementing [OMEMO](https://conversations.im/omemo/).
 
 (Plus I thought the word sounds funny, especially when pronounced by a speaker of English.)
@@ -17,7 +17,7 @@
 Thanks to EionRobb, Windows users can use the dlls he compiled and provides here: https://eion.robbmob.com/lurch/
 
 1. Download the plugin .dll itself and put it in the `Program Files\Pidgin\plugins` directory. If you want to talk to other OMEMO clients, use _lurch-compat.dll_.
-2. Download _libgcrypt-20.dll_ and _libgpg-error-0.dll_ and put them in `Program Files\Pidgin` directory.
+2. Download _libgcrypt-20.dll_ and _libgpg-error-0.dll_ and put them in the `Program Files\Pidgin` directory.
 
 These instructions can also be found at the provided link.
 
