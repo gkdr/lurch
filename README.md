@@ -4,14 +4,34 @@
 (Plus I thought the word sounds funny, especially when pronounced by a speaker of English.)
 
 ## Installation
-### Linux (and MacOS?)
-1. Install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libxml2-dev`, `libsqlite3-dev`, `libgcrypt20-dev`)
-1. `git clone https://github.com/gkdr/lurch.git`
-2. `cd lurch`
-3. `git submodule update --init` _(If you just pull a newer version, remember to also update the submodules as they might have changed!)_
-4. `make`
-5. A final `make install-home` should copy the compiled plugin into your libpurple plugin dir.
-6. The next time you start Pidgin (or another libpurple client), you should be able to activate it in the "Plugins" window.
+Install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libxml2-dev`, `libsqlite3-dev`, `libgcrypt20-dev`)
+
+On Arch/Parabola you can install the following packages:
+
+``` bash
+sudo pacman -S base-devel git pidgin libpurple mxml sqlite libxml2 libgcrypt
+```
+
+Get the source code:
+
+``` bash
+git clone https://github.com/gkdr/lurch/
+cd lurch
+git submodule update --init
+```
+
+If you just pull a newer version, remember to also update the submodules as they might have changed!
+
+Then build and install with:
+
+``` bash
+make
+make install-home
+```
+
+Which copies the compiled plugin into your local libpurple plugin directory.
+
+The next time you start Pidgin, or another libpurple client, you should be able to activate it in the "Plugins" window.
 
 ### Windows
 Thanks to EionRobb, Windows users can use the dlls he compiled and provides here: https://eion.robbmob.com/lurch/
