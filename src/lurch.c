@@ -762,7 +762,7 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
       goto cleanup;
     }
 
-    ret_val = omemo_message_export_encrypted(qmsg_p->om_msg_p, &msg_xml);
+    ret_val = omemo_message_export_encrypted(qmsg_p->om_msg_p, OMEMO_ADD_MSG_EME, &msg_xml);
     if (ret_val) {
       err_msg_dbg = "failed to export the message to xml";
       goto cleanup;
@@ -948,7 +948,7 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
     goto cleanup;
   }
 
-  ret_val = omemo_message_export_encrypted(msg_p, &msg_xml);
+  ret_val = omemo_message_export_encrypted(msg_p, OMEMO_ADD_MSG_NONE, &msg_xml);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to export encrypted msg");
     goto cleanup;
@@ -1411,7 +1411,7 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
       goto cleanup;
     }
 
-    ret_val = omemo_message_export_encrypted(om_msg_p, &xml);
+    ret_val = omemo_message_export_encrypted(om_msg_p, OMEMO_ADD_MSG_EME, &xml);
     if (ret_val) {
       err_msg_dbg = g_strdup_printf("failed to export omemo msg to xml");
       goto cleanup;
@@ -2712,7 +2712,7 @@ static PurplePluginInfo info = {
 
     "core-riba-lurch",
     "lurch",
-    "0.6.2",
+    "0.6.3",
 
     "Implements OMEMO for libpurple.",
     "End-to-end encryption using the Signal protocol, adapted for XMPP.",
