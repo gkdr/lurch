@@ -4,6 +4,16 @@
 (Plus I thought the word sounds funny, especially when pronounced by a speaker of English.)
 
 ## Installation
+### Linux (Arch package)
+
+``` bash
+sudo pacman -S base-devel git pidgin libpurple mxml sqlite libxml2 libgcrypt
+git clone https://aur.archlinux.org/libpurple-lurch-git.git
+cd libpurple-lurch-git
+makepkg
+sudo pacman -U *.xz
+```
+
 ### Linux (and MacOS?)
 Install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libxml2-dev`, `libsqlite3-dev`, `libgcrypt20-dev`)
 
