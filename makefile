@@ -12,8 +12,7 @@ INSTALL_DIR = $(INSTALL) -d -m 755
 RM = rm
 RM_RF = $(RM) -rf
 CMAKE ?= cmake
-CMAKE_FLAGS = -DCMAKE_BUILD_TYPE=Debug
-
+CMAKE_FLAGS = -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS=-fPIC
 
 ### flags
 #
@@ -24,11 +23,17 @@ PKGCFG_L=$(shell $(PKG_CONFIG) --libs purple glib-2.0 sqlite3 mxml) \
 		 $(shell $(XML2_CONFIG) --libs) \
 		 -L$(shell $(PKG_CONFIG) --variable=plugindir purple) \
 		 $(shell $(LIBGCRYPT_CONFIG) --libs)
+		 
+ifneq ("$(wildcard /etc/redhat-release)","")
+    LJABBER= -lxmpp
+else
+	LJABBER= -ljabber
+endif
 
 HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
 CFLAGS += -std=c11 -Wall -g -Wstrict-overflow $(PKGCFG_C) $(HEADERS)
 CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE
-LDFLAGS += -ldl -lm $(PKGCFG_L) -ljabber
+LDFLAGS += -ldl -lm $(PKGCFG_L) $(LJABBER)
 
 
 ### directories
@@ -51,8 +56,8 @@ AXC_SRC=$(AXC_DIR)/src
 AXC_BUILD=$(AXC_DIR)/build
 AXC_PATH=$(AXC_BUILD)/libaxc-nt.a
 
-AX_DIR=$(AXC_DIR)/lib/libaxolotl-c
-AX_PATH=$(AX_DIR)/build/src/libaxolotl-c.a
+AX_DIR=$(AXC_DIR)/lib/libsignal-protocol-c
+AX_PATH=$(AX_DIR)/build/src/libsignal-protocol-c.a
 
 FILES=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
 
@@ -65,7 +70,7 @@ $(BDIR):
 	$(MKDIR_P) build
 
 $(AX_PATH):
-	cd $(AXC_DIR)/lib/libaxolotl-c/ && \
+	cd $(AX_DIR)/ && \
 	   $(MKDIR_P) build && \
 	   cd build && \
 	   $(CMAKE) $(CMAKE_FLAGS) .. \

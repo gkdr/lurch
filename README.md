@@ -15,7 +15,12 @@ sudo pacman -U *.xz
 ```
 
 ### Linux (and MacOS?)
-Install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libxml2-dev`, `libsqlite3-dev`, `libgcrypt20-dev`)
+First, install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libxml2-dev`, `libsqlite3-dev`, `libgcrypt20-dev`).
+
+Unfortunately, _Debian Stable_ comes with an older version of _mxml_ (2.6).
+See issues #30 and #35 on some hints how to get a newer version from the _Testing_ repositories (2.7 is required).
+
+For some hints on how to get the required libraries on macOS, see issue #8.
 
 On Arch/Parabola you can install the following packages:
 
@@ -23,7 +28,7 @@ On Arch/Parabola you can install the following packages:
 sudo pacman -S base-devel git pidgin libpurple mxml sqlite libxml2 libgcrypt
 ```
 
-Get the source code:
+Then, get the source code:
 
 ``` bash
 git clone https://github.com/gkdr/lurch/
