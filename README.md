@@ -1,4 +1,4 @@
-# lurch 0.6.3
+# lurch 0.6.4
 /lʊʁç/. In German, an Axolotl is a type of Lurch, which simply means 'amphibian'. This plugin brings Axolotl, by now renamed to double ratchet, to libpurple applications such as [Pidgin](https://www.pidgin.im/) by implementing [OMEMO](https://conversations.im/omemo/).
 
 (Plus I thought the word sounds funny, especially when pronounced by a speaker of English.)
@@ -28,12 +28,12 @@ On Arch/Parabola you can install the following packages:
 sudo pacman -S base-devel git pidgin libpurple mxml sqlite libxml2 libgcrypt
 ```
 
-Then, get the source code:
+Then, get the source code, including all submodules and their submodules:
 
 ``` bash
 git clone https://github.com/gkdr/lurch/
 cd lurch
-git submodule update --init
+git submodule update --init --recursive
 ```
 
 If you just pull a newer version, remember to also update the submodules as they might have changed!

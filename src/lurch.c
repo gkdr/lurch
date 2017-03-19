@@ -2712,7 +2712,7 @@ static PurplePluginInfo info = {
 
     "core-riba-lurch",
     "lurch",
-    "0.6.3",
+    "0.6.4",
 
     "Implements OMEMO for libpurple.",
     "End-to-end encryption using the Signal protocol, adapted for XMPP.",
