@@ -3,6 +3,10 @@
 
 (Plus I thought the word sounds funny, especially when pronounced by a speaker of English.)
 
+## News
+Currently you should not use Pidgin's XHTML-IM feature (i.e. changing anything like font size or style), as it sends an additional copy of the whole plaintext in another node.
+Fix soon.
+
 ## Installation
 ### Linux (Arch package)
 
