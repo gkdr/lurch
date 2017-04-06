@@ -1,11 +1,15 @@
-# lurch 0.6.4
+# lurch 0.6.5
 /lʊʁç/. In German, an Axolotl is a type of Lurch, which simply means 'amphibian'. This plugin brings Axolotl, by now renamed to double ratchet, to libpurple applications such as [Pidgin](https://www.pidgin.im/) by implementing [OMEMO](https://conversations.im/omemo/).
 
 (Plus I thought the word sounds funny, especially when pronounced by a speaker of English.)
 
 ## News
-Currently you should not use Pidgin's XHTML-IM feature (i.e. changing anything like font size or style), as it sends an additional copy of the whole plaintext in another node.
-Fix soon.
+0.6.5 is out and you should get it as it contains important security updates.
+
+If you use any text-formatting, through XHTML-IM a whole plaintext copy of your text was sent along with the ciphertext, which is obviously bad.
+The `<html>` tags and any additional `<body>` tags are now stripped from the message.
+
+Also, the tag is now appended to the key, i.e. is part of the data which is encrypted with the double ratchet session.
 
 ## Installation
 ### Linux (Arch package)
