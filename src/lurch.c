@@ -2659,8 +2659,8 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
   // register handlers
   jabber_handle_p = purple_plugins_find_with_id(JABBER_PROTOCOL_ID);
 
-  (void) purple_signal_connect_priority(jabber_handle_p, "jabber-receiving-xmlnode", plugin_p, PURPLE_CALLBACK(lurch_xml_received_cb), NULL, PURPLE_PRIORITY_HIGHEST);
-  (void) purple_signal_connect(jabber_handle_p, "jabber-sending-xmlnode", plugin_p, PURPLE_CALLBACK(lurch_xml_sent_cb), NULL);
+  (void) purple_signal_connect_priority(jabber_handle_p, "jabber-receiving-xmlnode", plugin_p, PURPLE_CALLBACK(lurch_xml_received_cb), NULL, PURPLE_PRIORITY_HIGHEST - 100);
+  (void) purple_signal_connect_priority(jabber_handle_p, "jabber-sending-xmlnode", plugin_p, PURPLE_CALLBACK(lurch_xml_sent_cb), NULL, PURPLE_PRIORITY_HIGHEST - 100);
 
   jabber_pep_register_handler(dl_ns, lurch_pep_devicelist_event_handler);
   jabber_add_feature(dl_ns, jabber_pep_namespace_only_when_pep_enabled_cb);
