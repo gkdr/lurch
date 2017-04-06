@@ -2219,6 +2219,7 @@ static void lurch_conv_updated_cb(PurpleConversation * conv_p, PurpleConvUpdateT
         lurch_topic_update_chat(conv_p);
       }
 
+      topic_changed = 0;
     } else {
       topic_changed = 0;
     }
