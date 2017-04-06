@@ -1515,7 +1515,7 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
     goto cleanup;
   }
   tempxml = xmlnode_to_str(*msg_stanza_pp, &len);
-  ret_val = omemo_message_prepare_encryption(tempxml, own_id, &crypto, &msg_p);
+  ret_val = omemo_message_prepare_encryption(tempxml, own_id, &crypto, OMEMO_STRIP_ALL, &msg_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to construct omemo message");
     goto cleanup;
@@ -1646,7 +1646,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
     goto cleanup;
   }
   tempxml = xmlnode_to_str(*msg_stanza_pp, &len);
-  ret_val = omemo_message_prepare_encryption(tempxml, own_id, &crypto, &om_msg_p);
+  ret_val = omemo_message_prepare_encryption(tempxml, own_id, &crypto, OMEMO_STRIP_ALL, &om_msg_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to construct omemo message");
     goto cleanup;
