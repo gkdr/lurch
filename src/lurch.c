@@ -1396,7 +1396,6 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
   lurch_queued_msg * qmsg_p = (void *) 0;
   GList * curr_item_p = (void *) 0;
   lurch_addr curr_addr = {0};
-  char * bundle_node_name = (void *) 0;
 
   ret_val = lurch_axc_sessions_exist(addr_l_p, axc_ctx_p, &no_sess_l_p);
   if (ret_val) {
@@ -1432,12 +1431,6 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
 
       purple_debug_info("lurch", "%s: %s has device without session %i, requesting bundle\n", __func__, curr_addr.jid, curr_addr.device_id);
 
-      ret_val = omemo_bundle_get_pep_node_name(curr_addr.device_id, &bundle_node_name);
-      if (ret_val) {
-        err_msg_dbg = g_strdup_printf("failed to get pep node name");
-        goto cleanup;
-      }
-
       lurch_bundle_request_do(js_p,
                               curr_addr.jid,
                               curr_addr.device_id,
@@ -1458,7 +1451,6 @@ cleanup:
   }
 
   free(xml);
-  free(bundle_node_name);
 
   return ret_val;
 }
@@ -1943,7 +1935,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
         goto cleanup;
       }
     } else {
-      purple_debug_info("lurch", "received omemo message that does not contain a key for this device, ignoring\n");
+      purple_debug_info("lurch", "received omemo message but no session with the device exists, ignoring\n");
       goto cleanup;
     }
   } else if (ret_val == AXC_ERR_INVALID_KEY_ID) {
@@ -2198,9 +2190,9 @@ static void lurch_conv_created_cb(PurpleConversation * conv_p) {
     return;
   }
 
-  if (purple_conversation_get_type(conv_p) == 1) {
+  if (purple_conversation_get_type(conv_p) == PURPLE_CONV_TYPE_IM) {
     lurch_topic_update_im(conv_p);
-  } else if (purple_conversation_get_type(conv_p) == 2) {
+  } else if (purple_conversation_get_type(conv_p) == PURPLE_CONV_TYPE_CHAT) {
     lurch_topic_update_chat(conv_p);
   }
 }
@@ -2210,12 +2202,12 @@ static void lurch_conv_updated_cb(PurpleConversation * conv_p, PurpleConvUpdateT
     return;
   }
 
-  if (type == 11) {
+  if (type == PURPLE_CONV_UPDATE_TITLE) {
     if (!topic_changed) {
       topic_changed = 1;
-      if (purple_conversation_get_type(conv_p) == 1) {
+      if (purple_conversation_get_type(conv_p) == PURPLE_CONV_TYPE_IM) {
         lurch_topic_update_im(conv_p);
-      } else if (purple_conversation_get_type(conv_p) == 2) {
+      } else if (purple_conversation_get_type(conv_p) == PURPLE_CONV_TYPE_CHAT) {
         lurch_topic_update_chat(conv_p);
       }
 
