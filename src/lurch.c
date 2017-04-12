@@ -1558,11 +1558,8 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
   }
 
   addr_l_p = lurch_addr_list_add(addr_l_p, user_dl_p, &own_id);
-  addr_l_p = lurch_addr_list_add(addr_l_p, dl_p, (void *) 0);
-  if (!addr_l_p) {
-    err_msg_dbg = g_strdup_printf("failed to malloc address struct");
-    ret_val = LURCH_ERR_NOMEM;
-    goto cleanup;
+  if (g_strcmp0(uname, to)) {
+    addr_l_p = lurch_addr_list_add(addr_l_p, dl_p, (void *) 0);
   }
 
   ret_val = lurch_msg_finalize_encryption(purple_connection_get_protocol_data(gc_p), axc_ctx_p, msg_p, addr_l_p, msg_stanza_pp);
