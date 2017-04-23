@@ -15,10 +15,10 @@ Also, the tag is now appended to the key, i.e. is part of the data which is encr
 ### Linux (Arch package)
 
 ``` bash
-sudo pacman -S base-devel git pidgin libpurple mxml sqlite libxml2 libgcrypt
+sudo pacman -S base-devel devtools git pidgin libpurple mxml sqlite libxml2 libgcrypt
 git clone https://aur.archlinux.org/libpurple-lurch-git.git
 cd libpurple-lurch-git
-makepkg
+extra-x86_64-build
 sudo pacman -U *.xz
 ```
 
