@@ -1,9 +1,22 @@
 ### toolchain
 #
 CC ?= gcc
+
 PKG_CONFIG ?= pkg-config
+GLIB_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags glib-2.0)
+GLIB_LDFLAGS ?= $(shell $(PKG_CONFIG) --libs glib-2.0)
+
+LIBPURPLE_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags purple)
+LIBPURPLE_LDFLAGS ?= $(shell $(PKG_CONFIG) --cflags purple) \
+		     -L$(shell $(PKG_CONFIG) --variable=plugindir purple)
+
 XML2_CONFIG ?= xml2-config
+XML2_CFLAGS ?= $(shell $(XML2_CONFIG) --cflags)
+XML2_LDFLAGS ?= $(shell $(XML2_CONFIG) --libs)
+
 LIBGCRYPT_CONFIG ?= libgcrypt-config
+LIBGCRYPT_LDFLAGS ?= $(shell $(LIBGCRYPT_CONFIG) --libs)
+
 MKDIR = mkdir
 MKDIR_P = mkdir -p
 INSTALL = install
@@ -16,16 +29,21 @@ CMAKE_FLAGS = -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS=-fPIC
 
 ### flags
 #
-PKGCFG_C=$(shell $(PKG_CONFIG) --cflags glib-2.0 purple) \
-		 $(shell $(XML2_CONFIG) --cflags)
+LIBPURPLE_CFLAGS=$(shell $(PKG_CONFIG) --cflags purple)
+LIBPURPLE_LDFLAGS=$(shell $(PKG_CONFIG) --cflags purple) \
+		    -L$(shell $(PKG_CONFIG) --variable=plugindir purple)
 
-PKGCFG_L=$(shell $(PKG_CONFIG) --libs purple glib-2.0 sqlite3 mxml) \
-		 $(shell $(XML2_CONFIG) --libs) \
-		 -L$(shell $(PKG_CONFIG) --variable=plugindir purple) \
-		 $(shell $(LIBGCRYPT_CONFIG) --libs)
-		 
+PKGCFG_C=$(GLIB_CFLAGS) \
+	 $(LIBPURPLE_CFLAGS) \
+	 $(XML2_CFLAGS)
+
+PKGCFG_L=$(GLIB_LDFLAGS) \
+	 $(LIBPURPLE_LDFLAGS) \
+	 $(XML2_LDFLAGS) \
+	 $(LIBGCRYPT_LDFLAGS)
+
 ifneq ("$(wildcard /etc/redhat-release)","")
-    LJABBER= -lxmpp
+	LJABBER= -lxmpp
 else
 	LJABBER= -ljabber
 endif
