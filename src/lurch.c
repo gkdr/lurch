@@ -1002,7 +1002,7 @@ static int lurch_devicelist_process(char * uname, omemo_devicelist * dl_in_p, Ja
   uint32_t curr_id = 0;
   char * bundle_node_name = (void *) 0;
 
-  char * temp;
+  char * temp = NULL;
 
   from = omemo_devicelist_get_owner(dl_in_p);
   db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
