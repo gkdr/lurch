@@ -50,6 +50,7 @@ endif
 
 HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
 CFLAGS += -std=c11 -Wall -g -Wstrict-overflow $(PKGCFG_C) $(HEADERS)
+PLUGIN_CPPFLAGS=-DPURPLEPLUGINS
 CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE
 LDFLAGS += -ldl -lm $(PKGCFG_L) $(LJABBER)
 
@@ -77,7 +78,7 @@ AXC_PATH=$(AXC_BUILD)/libaxc-nt.a
 AX_DIR=$(AXC_DIR)/lib/libsignal-protocol-c
 AX_PATH=$(AX_DIR)/build/src/libsignal-protocol-c.a
 
-FILES=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
+VENDOR_LIBS=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
 
 
 ### make rules
@@ -101,13 +102,13 @@ $(LOMEMO_PATH):
 	$(MAKE) -C "$(LOMEMO_DIR)" build/libomemo-conversations.a
 
 $(BDIR)/%.o: $(SDIR)/%.c $(BDIR)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $(SDIR)/$*.c -o $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) -c $(SDIR)/$*.c -o $@
 
-$(BDIR)/lurch.so: $(BDIR)/lurch.o $(FILES)
-	$(CC) -fPIC -shared $(CFLAGS) $(CPPFLAGS) \
-		"$(BDIR)/lurch.o" $(FILES) \
+$(BDIR)/lurch.so: $(BDIR)/lurch.o $(VENDOR_LIBS)
+	$(CC) -fPIC -shared $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) \
+		"$(BDIR)/lurch.o" $(VENDOR_LIBS) \
 		-o $@ $(LDFLAGS)
-$(BDIR)/lurch.a: $(BDIR)/lurch.o
+$(BDIR)/lurch.a: $(BDIR)/lurch.o $(VENDOR_LIBS)
 	$(AR) rcs $@ $^
 
 install: $(BDIR)/lurch.so

@@ -1,5 +1,3 @@
-#define PURPLE_PLUGINS
-
 #include <glib.h>
 
 #include <inttypes.h>
