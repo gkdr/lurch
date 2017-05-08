@@ -100,13 +100,15 @@ $(AXC_PATH):
 $(LOMEMO_PATH):
 	$(MAKE) -C "$(LOMEMO_DIR)" build/libomemo-conversations.a
 
-$(BDIR)/lurch.so: $(SDIR)/lurch.c $(AX_PATH) $(AXC_PATH) $(LOMEMO_PATH) $(BDIR)
-	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) \
-		-c "$(SDIR)/lurch.c" \
-		-o "$(BDIR)/lurch.o"
+$(BDIR)/%.o: $(SDIR)/%.c $(BDIR)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $(SDIR)/$*.c -o $@
+
+$(BDIR)/lurch.so: $(BDIR)/lurch.o $(FILES)
 	$(CC) -fPIC -shared $(CFLAGS) $(CPPFLAGS) \
 		"$(BDIR)/lurch.o" $(FILES) \
 		-o $@ $(LDFLAGS)
+$(BDIR)/lurch.a: $(BDIR)/lurch.o
+	$(AR) rcs $@ $^
 
 install: $(BDIR)/lurch.so
 	[ -e "$(DESTDIR)/$(PURPLE_PLUGIN_DIR)" ] || \
