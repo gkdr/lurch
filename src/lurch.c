@@ -1002,7 +1002,7 @@ static int lurch_devicelist_process(char * uname, omemo_devicelist * dl_in_p, Ja
   uint32_t curr_id = 0;
   char * bundle_node_name = (void *) 0;
 
-  char * temp;
+  char * debug_str = (void *) 0;
 
   from = omemo_devicelist_get_owner(dl_in_p);
   db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
@@ -1015,8 +1015,8 @@ static int lurch_devicelist_process(char * uname, omemo_devicelist * dl_in_p, Ja
     goto cleanup;
   }
 
-  omemo_devicelist_export(dl_db_p, &temp);
-  purple_debug_info("lurch", "%s: %s\n%s\n", __func__, "cached devicelist is", temp);
+  omemo_devicelist_export(dl_db_p, &debug_str);
+  purple_debug_info("lurch", "%s: %s\n%s\n", __func__, "cached devicelist is", debug_str);
 
   ret_val = omemo_devicelist_diff(dl_in_p, dl_db_p, &add_l_p, &del_l_p);
   if (ret_val) {
@@ -1062,7 +1062,7 @@ cleanup:
   g_list_free_full(add_l_p, free);
   g_list_free_full(del_l_p, free);
   free(bundle_node_name);
-  free(temp);
+  free(debug_str);
 
   return ret_val;
 }
