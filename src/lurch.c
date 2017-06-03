@@ -183,6 +183,37 @@ static char * lurch_uname_strip(const char * uname) {
 }
 
 /**
+ * Log wrapper for AXC
+ *
+ * @param level	an AXC_LOG level
+ * @param msg 	the log message
+ * @param len	the length of the message
+ * @param ctx_p	the axc context
+ */
+static void lurch_axc_log_func(int level, const char * msg, size_t len, void * user_data)
+{
+  switch(level) {
+    case AXC_LOG_ERROR:
+      purple_debug_error("lurch", "[AXC ERROR] %s", msg);
+    case AXC_LOG_WARNING:
+      purple_debug_warning("lurch", "[AXC WARNING] %s", msg);
+      break;
+    case AXC_LOG_NOTICE:
+      purple_debug_info("lurch", "[AXC NOTICE] %s", msg);
+      break;
+    case AXC_LOG_INFO:
+      purple_debug_info("lurch", "[AXC INFO] %s", msg);
+      break;
+    case AXC_LOG_DEBUG:
+      purple_debug_misc("lurch", "[AXC DEBUG] %s", msg);
+      break;
+    default:
+      purple_debug_misc("lurch", "[AXC %d] %s", level, msg);
+      break;
+  }
+}
+
+/**
  * Creates and initializes the axc context.
  *
  * @param uname The username.
@@ -201,6 +232,8 @@ static int lurch_axc_get_init_ctx(char * uname, axc_context ** ctx_pp) {
     err_msg_dbg = g_strdup_printf("failed to create axc context");
     goto cleanup;
   }
+
+  axc_context_set_log_func(ctx_p, lurch_axc_log_func);
 
   db_fn = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_AXC);
   ret_val = axc_context_set_db_fn(ctx_p, db_fn, strlen(db_fn));
