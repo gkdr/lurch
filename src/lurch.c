@@ -25,6 +25,8 @@
 #include "axc.h"
 #include "axc_store.h"
 
+#include "lurch.h"
+
 #ifdef _WIN32
 #define strnlen(a, b) (MIN(strlen(a), (b)))
 #endif
@@ -2744,11 +2746,11 @@ static PurplePluginInfo info = {
 
     "core-riba-lurch",
     "lurch",
-    "0.6.5",
+    LURCH_VERSION,
 
     "Implements OMEMO for libpurple.",
     "End-to-end encryption using the Signal protocol, adapted for XMPP.",
-    "Richard Bayerle <riba@firemail.cc>",
+    LURCH_AUTHOR,
     "https://github.com/gkdr/lurch",
 
     lurch_plugin_load,
