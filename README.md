@@ -25,8 +25,7 @@ sudo pacman -U *.xz
 ### Linux (and MacOS?)
 First, install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libxml2-dev`, `libsqlite3-dev`, `libgcrypt20-dev`).
 
-Unfortunately, _Debian Stable_ comes with an older version of _mxml_ (2.6).
-See issues #30 and #35 on some hints how to get a newer version from the _Testing_ repositories (2.7 is required).
+Make sure that you use at least version 2.7 of _mxml_.
 
 For some hints on how to get the required libraries on macOS, see issue #8.
 
