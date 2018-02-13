@@ -35,6 +35,10 @@ On Arch/Parabola you can install the following packages:
 ``` bash
 sudo pacman -S base-devel git pidgin libpurple mxml sqlite libxml2 libgcrypt
 ```
+On fedora install the following packages:
+``` bash
+sudo dnf install cmake gcc-c++ mxml-devel libpurple-devel libxml2-devel libgcrypt libsqlite3x-devel glib2-devel libgcrypt-devel
+```
 
 Then, get the source code, including all submodules and their submodules:
 
