@@ -1,9 +1,11 @@
 ### toolchain
 #
 CC ?= gcc
+
 PKG_CONFIG ?= pkg-config
 XML2_CONFIG ?= xml2-config
 LIBGCRYPT_CONFIG ?= libgcrypt-config
+
 MKDIR = mkdir
 MKDIR_P = mkdir -p
 INSTALL = install
@@ -16,22 +18,38 @@ CMAKE_FLAGS = -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS=-fPIC
 
 ### flags
 #
-PKGCFG_C=$(shell $(PKG_CONFIG) --cflags glib-2.0 purple) \
-		 $(shell $(XML2_CONFIG) --cflags)
+GLIB_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags glib-2.0)
+GLIB_LDFLAGS ?= $(shell $(PKG_CONFIG) --libs glib-2.0)
 
-PKGCFG_L=$(shell $(PKG_CONFIG) --libs purple glib-2.0 sqlite3 mxml) \
-		 $(shell $(XML2_CONFIG) --libs) \
-		 -L$(shell $(PKG_CONFIG) --variable=plugindir purple) \
-		 $(shell $(LIBGCRYPT_CONFIG) --libs)
-		 
+LIBPURPLE_CFLAGS=$(shell $(PKG_CONFIG) --cflags purple)
+LIBPURPLE_LDFLAGS=$(shell $(PKG_CONFIG) --cflags purple) \
+		    -L$(shell $(PKG_CONFIG) --variable=plugindir purple)
+		    
+XML2_CFLAGS ?= $(shell $(XML2_CONFIG) --cflags)
+XML2_LDFLAGS ?= $(shell $(XML2_CONFIG) --libs)
+
+LIBGCRYPT_LDFLAGS ?= $(shell $(LIBGCRYPT_CONFIG) --libs)
+
+PKGCFG_C=$(GLIB_CFLAGS) \
+	 $(LIBPURPLE_CFLAGS) \
+	 $(XML2_CFLAGS)
+
+
+PKGCFG_L=$(shell $(PKG_CONFIG) --libs sqlite3 mxml) \
+ 	$(GLIB_LDFLAGS) \
+	 $(LIBPURPLE_LDFLAGS) \
+	 $(XML2_LDFLAGS) \
+	 $(LIBGCRYPT_LDFLAGS)
+
 ifneq ("$(wildcard /etc/redhat-release)","")
-    LJABBER= -lxmpp
+	LJABBER= -lxmpp
 else
 	LJABBER= -ljabber
 endif
 
 HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
 CFLAGS += -std=c11 -Wall -g -Wstrict-overflow $(PKGCFG_C) $(HEADERS)
+PLUGIN_CPPFLAGS=-DPURPLE_PLUGINS
 CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE
 LDFLAGS += -ldl -lm $(PKGCFG_L) $(LJABBER)
 
@@ -59,7 +77,7 @@ AXC_PATH=$(AXC_BUILD)/libaxc-nt.a
 AX_DIR=$(AXC_DIR)/lib/libsignal-protocol-c
 AX_PATH=$(AX_DIR)/build/src/libsignal-protocol-c.a
 
-FILES=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
+VENDOR_LIBS=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
 
 
 ### make rules
@@ -82,13 +100,15 @@ $(AXC_PATH):
 $(LOMEMO_PATH):
 	$(MAKE) -C "$(LOMEMO_DIR)" build/libomemo-conversations.a
 
-$(BDIR)/lurch.so: $(SDIR)/lurch.c $(AX_PATH) $(AXC_PATH) $(LOMEMO_PATH) $(BDIR)
-	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) \
-		-c "$(SDIR)/lurch.c" \
-		-o "$(BDIR)/lurch.o"
-	$(CC) -fPIC -shared $(CFLAGS) $(CPPFLAGS) \
-		"$(BDIR)/lurch.o" $(FILES) \
+$(BDIR)/%.o: $(SDIR)/%.c $(BDIR)
+	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) -c $(SDIR)/$*.c -o $@
+
+$(BDIR)/lurch.so: $(BDIR)/lurch.o $(VENDOR_LIBS)
+	$(CC) -fPIC -shared $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) \
+		"$(BDIR)/lurch.o" $(VENDOR_LIBS) \
 		-o $@ $(LDFLAGS)
+$(BDIR)/lurch.a: $(BDIR)/lurch.o $(VENDOR_LIBS)
+	$(AR) rcs $@ $^
 
 install: $(BDIR)/lurch.so
 	[ -e "$(DESTDIR)/$(PURPLE_PLUGIN_DIR)" ] || \

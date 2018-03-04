@@ -25,7 +25,7 @@ sudo pacman -U *.xz
 ```
 
 ### Compiling (harder)
-#### Linux (and MacOS?)
+#### Linux
 1. First, install the (submodules') dependencies
 * `libpurple-dev`
 * `libmxml-dev`
@@ -83,6 +83,28 @@ make install-home
 Which copies the compiled plugin into your local libpurple plugin directory.
 
 The next time you start Pidgin, or another libpurple client, you should be able to activate it in the "Plugins" window.
+
+## MacOS variations
+
+Install dependencies using Homebrew.
+
+```
+brew install glib libxml2 libmxml sqlite libgcrypt hg
+```
+
+Get a copy of the libpurple soure (from Pidgin), and prepare it so we can use it
+during the build.
+
+```
+hg clone https://bitbucket.org/pidgin/main pidgin
+cd pidgin
+hg checkout v2.10.12
+./configure $(./configure --help | grep -i -- --disable | awk '{ print $1 }')
+```
+
+```
+make LIBPURPLE_CFLAGS=-I${PWD}/pidgin/libpurple LIBPURPLE_LDFLAGS=/Applications/Adium.app/Contents/Frameworks/libpurple.framework/libpurple LJABBER=
+```
 
 ### Windows
 Thanks to EionRobb, Windows users can use the dlls he compiled and provides here: https://eion.robbmob.com/lurch/
