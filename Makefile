@@ -3,19 +3,8 @@
 CC ?= gcc
 
 PKG_CONFIG ?= pkg-config
-GLIB_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags glib-2.0)
-GLIB_LDFLAGS ?= $(shell $(PKG_CONFIG) --libs glib-2.0)
-
-LIBPURPLE_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags purple)
-LIBPURPLE_LDFLAGS ?= $(shell $(PKG_CONFIG) --cflags purple) \
-		     -L$(shell $(PKG_CONFIG) --variable=plugindir purple)
-
 XML2_CONFIG ?= xml2-config
-XML2_CFLAGS ?= $(shell $(XML2_CONFIG) --cflags)
-XML2_LDFLAGS ?= $(shell $(XML2_CONFIG) --libs)
-
 LIBGCRYPT_CONFIG ?= libgcrypt-config
-LIBGCRYPT_LDFLAGS ?= $(shell $(LIBGCRYPT_CONFIG) --libs)
 
 MKDIR = mkdir
 MKDIR_P = mkdir -p
@@ -29,15 +18,25 @@ CMAKE_FLAGS = -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS=-fPIC
 
 ### flags
 #
+GLIB_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags glib-2.0)
+GLIB_LDFLAGS ?= $(shell $(PKG_CONFIG) --libs glib-2.0)
+
 LIBPURPLE_CFLAGS=$(shell $(PKG_CONFIG) --cflags purple)
 LIBPURPLE_LDFLAGS=$(shell $(PKG_CONFIG) --cflags purple) \
 		    -L$(shell $(PKG_CONFIG) --variable=plugindir purple)
+		    
+XML2_CFLAGS ?= $(shell $(XML2_CONFIG) --cflags)
+XML2_LDFLAGS ?= $(shell $(XML2_CONFIG) --libs)
+
+LIBGCRYPT_LDFLAGS ?= $(shell $(LIBGCRYPT_CONFIG) --libs)
 
 PKGCFG_C=$(GLIB_CFLAGS) \
 	 $(LIBPURPLE_CFLAGS) \
 	 $(XML2_CFLAGS)
 
-PKGCFG_L=$(GLIB_LDFLAGS) \
+
+PKGCFG_L=$(shell $(PKG_CONFIG) --libs sqlite3 mxml) \
+ 	$(GLIB_LDFLAGS) \
 	 $(LIBPURPLE_LDFLAGS) \
 	 $(XML2_LDFLAGS) \
 	 $(LIBGCRYPT_LDFLAGS)
@@ -50,7 +49,7 @@ endif
 
 HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
 CFLAGS += -std=c11 -Wall -g -Wstrict-overflow $(PKGCFG_C) $(HEADERS)
-PLUGIN_CPPFLAGS=-DPURPLEPLUGINS
+PLUGIN_CPPFLAGS=-DPURPLE_PLUGINS
 CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE
 LDFLAGS += -ldl -lm $(PKGCFG_L) $(LJABBER)
 
@@ -102,7 +101,7 @@ $(LOMEMO_PATH):
 	$(MAKE) -C "$(LOMEMO_DIR)" build/libomemo-conversations.a
 
 $(BDIR)/%.o: $(SDIR)/%.c $(BDIR)
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) -c $(SDIR)/$*.c -o $@
+	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) -c $(SDIR)/$*.c -o $@
 
 $(BDIR)/lurch.so: $(BDIR)/lurch.o $(VENDOR_LIBS)
 	$(CC) -fPIC -shared $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) \
