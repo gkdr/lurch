@@ -12,7 +12,9 @@ The `<html>` tags and any additional `<body>` tags are now stripped from the mes
 Also, the tag is now appended to the key, i.e. is part of the data which is encrypted with the double ratchet session.
 
 ## Installation
-### Linux (Arch package)
+### From a package (easy)
+#### Linux
+##### Arch Linux
 
 ``` bash
 sudo pacman -S base-devel git pidgin libpurple mxml sqlite libxml2 libgcrypt
@@ -22,21 +24,46 @@ makepkg
 sudo pacman -U *.xz
 ```
 
-### Linux (and MacOS?)
-First, install the (submodules') dependencies (`libpurple-dev`, `libmxml-dev`, `libxml2-dev`, `libsqlite3-dev`, `libgcrypt20-dev`).
+### Compiling (harder)
+#### Linux (and MacOS?)
+1. First, install the (submodules') dependencies
+* `libpurple-dev`
+* `libmxml-dev`
+* `libxml2-dev`
+* `libsqlite3-dev`
+* `libgcrypt20-dev`
 
-Unfortunately, _Debian Stable_ comes with an older version of _mxml_ (2.6).
-See issues #30 and #35 on some hints how to get a newer version from the _Testing_ repositories (2.7 is required).
+These might have different names in different GNU/Linux distributions (such as Fedora or Arch, for instance).
+
+You'll also need `cmake` to compile and you'll most likely want to install `git` to download (and in the future, update) the code easily.
 
 For some hints on how to get the required libraries on macOS, see issue #8.
 
-On Arch/Parabola you can install the following packages:
+##### Debian, Ubuntu
+Unfortunately, _Debian Stable_ comes with an older version of _mxml_ (2.6).
+See issues #30 and #35 on some hints how to get a newer version from the _Testing_ repositories (2.7 is required).
+
+On Debian testing and Ubuntu 16.04, you can install the dependencies with this command:
+
+``` bash
+sudo apt install cmake git libpurple-dev, libmxml-dev, libxml2-dev, libsqlite3-dev, libgcrypt20-dev
+```
+
+###### ArchLinux, Parabola
+On Arch and Parabola, you can install the dependencies with this command:
 
 ``` bash
 sudo pacman -S base-devel git pidgin libpurple mxml sqlite libxml2 libgcrypt
 ```
+##### Fedora
+On Fedora, you can install the dependencies with this command:
 
-Then, get the source code, including all submodules and their submodules:
+
+``` bash
+sudo dnf install cmake git libpurple-devel mxml-devel libxml2-devel libsqlite3x-devel libgcrypt-devel
+```
+
+2. Then, get the source code, including all submodules and their submodules:
 
 ``` bash
 git clone https://github.com/gkdr/lurch/
@@ -44,9 +71,9 @@ cd lurch
 git submodule update --init --recursive
 ```
 
-If you just pull a newer version, remember to also update the submodules as they might have changed!
+If you just pull a newer version (`git pull`), remember to also update the submodules as they might have changed!
 
-Then build and install with:
+3. Finally, build and install with:
 
 ``` bash
 make
