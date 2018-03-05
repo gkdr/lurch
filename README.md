@@ -37,12 +37,8 @@ These might have different names in different GNU/Linux distributions (such as F
 
 You'll also need `cmake` to compile and you'll most likely want to install `git` to download (and in the future, update) the code easily.
 
-For some hints on how to get the required libraries on macOS, see issue #8.
-
 ##### Debian, Ubuntu
-Unfortunately, _Debian Stable_ comes with an older version of _mxml_ (2.6).
-See issues #30 and #35 on some hints how to get a newer version from the _Testing_ repositories (2.7 is required).
-
+Make sure that you use at least version 2.7 of _mxml_.
 On Debian testing and Ubuntu 16.04, you can install the dependencies with this command:
 
 ``` bash
