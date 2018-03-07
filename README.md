@@ -1,21 +1,32 @@
 # lurch 0.6.5
-/lʊʁç/. In German, an Axolotl is a type of Lurch, which simply means 'amphibian'. This plugin brings Axolotl, by now renamed to double ratchet, to libpurple applications such as [Pidgin](https://www.pidgin.im/) by implementing [OMEMO](https://conversations.im/omemo/).
+/lʊʁç/. In German, an Axolotl is a type of Lurch, which simply means 'amphibian'. This plugin brings _Axolotl_, by now renamed to _double ratchet_, to _libpurple_ applications such as [Pidgin](https://www.pidgin.im/) by implementing the [OMEMO](https://conversations.im/omemo/) _XMPP Extension Protocol (XEP)_.
 
-(Plus I thought the word sounds funny, especially when pronounced by a speaker of English.)
+(Plus I thought the word sounds funny.)
 
 ## News
-0.6.5 is out and you should get it as it contains important security updates.
+Version 0.2 of the _OMEMO XEP_ adopted the namespace actually implemented by all the clients, so there is no need for a 'compatible' version of the plugin any longer. This mostly concerns Windows users who used the `lurch_compat.dll`, so don't be confused if it's not there.
 
-If you use any text-formatting, through XHTML-IM a whole plaintext copy of your text was sent along with the ciphertext, which is obviously bad.
-The `<html>` tags and any additional `<body>` tags are now stripped from the message.
+If you use a version <0.6.5, you should still definitely update.
 
-Also, the tag is now appended to the key, i.e. is part of the data which is encrypted with the double ratchet session.
+## Table of Contents
+1. [Installation](#installation)
+  1. [Linux](#installation-linux)
+  2. [Windows](#installation-windows)
+  3. [MacOS](#installation-macos)
+  4. [More](#installation-more)
+2. [Usage](#usage)
+  1. [General](#usage-general)
+  2. [Group Chats](#usage-mucs)
+3. [Bug Reports](#bug-reports)
+4. [FAQ](#faq)
+5. [Caveats](#caveats)
 
+<a name="installation" />
 ## Installation
-### From a package (easy)
-#### Linux
-##### Arch Linux
-
+<a name="installation-linux" />
+### Linux
+#### From a package (easy)
+__Arch Linux__
 ``` bash
 sudo pacman -S base-devel git pidgin libpurple mxml sqlite libxml2 libgcrypt
 git clone https://aur.archlinux.org/libpurple-lurch-git.git
@@ -24,115 +35,99 @@ makepkg
 sudo pacman -U *.xz
 ```
 
-### Compiling (harder)
-#### Linux
-1. First, install the (submodules') dependencies
-* `libpurple-dev`
-* `libmxml-dev`
-* `libxml2-dev`
-* `libsqlite3-dev`
-* `libgcrypt20-dev`
+#### Compiling (harder)
+##### 1. Install the (submodules') dependencies
+Below you can find the command to install the dependencies for popular distribution families. Make sure that you use at least version 2.7 of _mxml_, and 2.10.10 of _libpurple_.
 
-These might have different names in different GNU/Linux distributions (such as Fedora or Arch, for instance).
-
-You'll also need `cmake` to compile and you'll most likely want to install `git` to download (and in the future, update) the code easily.
-
-##### Debian, Ubuntu
-Make sure that you use at least version 2.7 of _mxml_.
-On Debian testing and Ubuntu 16.04, you can install the dependencies with this command:
-
+__Debian, Ubuntu__
 ``` bash
-sudo apt install cmake git libpurple-dev, libmxml-dev, libxml2-dev, libsqlite3-dev, libgcrypt20-dev
+sudo apt install git cmake libpurple-dev, libmxml-dev, libxml2-dev, libsqlite3-dev, libgcrypt20-dev
+```
+__ArchLinux, Parabola__
+``` bash
+sudo pacman -S base-devel git cmake pidgin libpurple mxml libxml2 sqlite libgcrypt
+```
+__Fedora__
+``` bash
+sudo dnf install git cmake libpurple-devel mxml-devel libxml2-devel libsqlite3x-devel libgcrypt-devel
 ```
 
-###### ArchLinux, Parabola
-On Arch and Parabola, you can install the dependencies with this command:
-
-``` bash
-sudo pacman -S base-devel git pidgin libpurple mxml sqlite libxml2 libgcrypt
-```
-##### Fedora
-On Fedora, you can install the dependencies with this command:
-
-
-``` bash
-sudo dnf install cmake git libpurple-devel mxml-devel libxml2-devel libsqlite3x-devel libgcrypt-devel
-```
-
-2. Then, get the source code, including all submodules and their submodules:
-
+##### 2A. EITHER: Build and install from source
 ``` bash
 git clone https://github.com/gkdr/lurch/
 cd lurch
 git submodule update --init --recursive
-```
-
-If you just pull a newer version (`git pull`), remember to also update the submodules as they might have changed!
-
-3. Finally, build and install with:
-
-``` bash
-make
 make install-home
 ```
+If you just pull a newer version (`git pull`), remember to also update the submodules as they might have changed!
 
-Which copies the compiled plugin into your local libpurple plugin directory.
+The last command compiles the whole thing and copies the plugin into your local _libpurple_ plugin directory.
 
 The next time you start Pidgin, or another libpurple client, you should be able to activate it in the "Plugins" window.
 
-## MacOS variations
+##### 2B. OR: Install from a community repo
+* Arch - AUR: https://aur.archlinux.org/packages/libpurple-lurch-git/
+* Fedora - COPR:  https://copr.fedorainfracloud.org/coprs/treba/pidgin-lurch/
 
-Install dependencies using Homebrew.
 
-```
-brew install glib libxml2 libmxml sqlite libgcrypt hg
-```
-
-Get a copy of the libpurple soure (from Pidgin), and prepare it so we can use it
-during the build.
-
-```
-hg clone https://bitbucket.org/pidgin/main pidgin
-cd pidgin
-hg checkout v2.10.12
-./configure $(./configure --help | grep -i -- --disable | awk '{ print $1 }')
-```
-
-```
-make LIBPURPLE_CFLAGS=-I${PWD}/pidgin/libpurple LIBPURPLE_LDFLAGS=/Applications/Adium.app/Contents/Frameworks/libpurple.framework/libpurple LJABBER=
-```
-
+<a name="installation-windows" />
 ### Windows
-Thanks to EionRobb, Windows users can use the dlls he compiled and provides here: https://eion.robbmob.com/lurch/
+Thanks to [EionRobb](https://github.com/EionRobb), Windows users can use the dlls he compiled and provides here: https://eion.robbmob.com/lurch/
 
-1. Download the plugin .dll itself and put it in the `Program Files\Pidgin\plugins` directory. If you want to talk to other OMEMO clients, use _lurch-compat.dll_.
-2. Download _libgcrypt-20.dll_ and _libgpg-error-0.dll_ and put them in the `Program Files\Pidgin` directory.
+1. Download the plugin (_lurch.dll_) and put it in the `Program Files (x86)\Pidgin\plugins` directory.
+2. Download _libgcrypt-20.dll_ and _libgpg-error-0.dll_ and put them in the `Program Files (x86)\Pidgin` directory.
 
 These instructions can also be found at the provided link.
 
-### More
-The current version of libpurple does not come with [Message Carbons](https://xmpp.org/extensions/xep-0280.html) support, i.e. if you have multiple devices, your Pidgin might not receive that message, and if you write messages on other devices, you do not see them either.
+<a name="installation-macos" />
+### MacOS
+Homebrew should have all dependencies:
 
-Lucky for you, I wrote another plugin to fix this! You can find it here: https://github.com/gkdr/carbons
-Be aware that both are really experimental and might not work well, especially not together.
+```
+brew install cmake pidgin glib libxml2 libmxml sqlite libgcrypt 
+```
+This should work on newer versions of MacOS, but if you run into problems check out [#8](https://github.com/gkdr/lurch/issues/8#issuecomment-285937828) for some hints. Complete instructions on how to get this running with Pidgin appreciated!
 
+Alternatively, if you use Adium, you should definitely check out [shtrom](https://github.com/shtrom)'s [Lurch4Adium](https://github.com/shtrom/Lurch4Adium)!
+
+<a name="installation-more" />
+### Additional plugins for more comfort
+The current version of _libpurple_'s _XMPP_ protocol plugin does not support many _XEPs_ by itself. For more features and compatibility with other clients such as _Conversations_ you can install the pulgins below.
+
+#### carbons
+If you have multiple devices and want messages sent and received by one device show up on all others, [XEP-0280: Message Carbons](https://xmpp.org/extensions/xep-0280.html) is what you are looking for.
+
+You can find my plugin for it here: https://github.com/gkdr/carbons
+
+#### pidgin-xmpp-receipts
+In order to support the checkmarks for delivered messages, you could install this plugin implementing [XEP-0184: Message Delivery Receipts](https://xmpp.org/extensions/xep-0184.html):
+
+ https://app.assembla.com/spaces/pidgin-xmpp-receipts/git/source
+
+<a name="usage" />
 ## Usage
+<a name="usage-general" />
+### General
+The first thing you can do to check if this plugin works is enter the `/lurch help` command in any conversation window. You will receive a list of the other commands you can use. I know this is a bit clunky, but using the command interface for interactions makes the plugin usable in clients that do not have a GUI.
+
+After you have made sure it was installed correctly, you do not have to activate it specifically for each conversation partner you want to use it with, unlike with e.g. _OTR_. If it detects that the other side is using _OMEMO_ (by the existence of an _OMEMO_ devicelist), the conversation will be encrypted automatically. If you do not want this, you can blacklist the user by typing `/lurch blacklist add` in the conversation window.
+
 This plugin will set the window title to notify the user if encryption is enabled or not. If it is, it will generally not send plaintext messages. If a plaintext message is received in a chat that is supposed to be encrypted, the user will be warned.
 
-For conversations with one other user, it is automatically activated if the other user is using OMEMO too. If you do not want this, you can blacklist the user by typing `/lurch blacklist add` in the conversation window.
+<a name="usage-mucs" />
+### Group Chats
+Group chats (via [XEP-0045: Multi-User Chat](https://xmpp.org/extensions/xep-0045.html) aka MUCs) are __not__ part of the _OMEMO_ specification, but can work under specific circumstances as outlined on the [_Conversations_ README](https://github.com/siacs/Conversations/blob/master/README.md#omemo). These are:
+* The MUC has to be non-anonymous so the real JID of each participant is visible. The channel owner has to set this property. In Pidgin you can get there by typing `/config`.
+* Every participant has to be in every other participant's contact list! This is why this really only makes sense for member-only MUCs.
 
-In groupchats, encryption has to be turned on first by typing `/lurch enable`. This is a client-side setting, so every participant has to do this in order for it to work. Warning messages are displayed if it does not work for every user in the conference, hopefully helping to fix the issue.
-
-The same restrictions as with other OMEMO applications apply though - each user has to have every other user in his buddy list, otherwise the information needed to build a session is not accessible. Thus, it is recommended to set it to members-only.
-Additionally, the room has to be set to non-anonymous so that the full JID of every user is accessible - otherwise, the necessary information cannot be fetched.
+Once you have confirmed these conditions are met, every member has to activate _OMEMO_ him- or herself. Using this plugin it works by typing `/lurch enable`. Warning messages are displayed if it does not work for every user in the conference, hopefully helping to fix the issue.
 
 It is __recommended__ you confirm the fingerprints look the same on each device, including among your own.To do this, you can e.g. display all fingerprints participating in a conversation using `/lurch show fp conv`.
 
-More information on the available commands can be found by typing `/lurch help` in any conversation window.
-
-## It doesn't work!
+<a name="bug-reports" />
+## Bug Reports
 If something does not work as expected, don't hesitate to open an issue.
-You can also reach me on the Pidgin IRC channel (#pidgin on freenode) as `_riba`, or send me an email.
+You can also reach me on the Pidgin IRC channel (#pidgin on freenode) as `riba`, or send me an email.
 
 It will usually be helpful (i.e. I will probably ask for it anyway) if you provide me with some information from the debug log, which you can find at _Help->Debug Window_ in Pidgin.
 
@@ -144,24 +139,25 @@ You can obtain it in the following way:
 * When it does crash, type `bt` (or `backtrace`)
 * Copy the whole thing
 
-## Answers
+<a name="faq" />
+## FAQ
 ### Can it talk to other OMEMO clients?
 __Yes__, it was (briefly) tested with:
-* [Conversations](https://conversations.im/)
-* [The gajim OMEMO plugin](https://dev.gajim.org/gajim/gajim-plugins/wikis/OmemoGajimPlugin)
-* [Mancho's libpurple plugin](https://git.imp.fu-berlin.de/mancho/libpurple-omemo-plugin)
+* [Conversations](https://conversations.im/) (Android)
+* [The gajim OMEMO plugin](https://dev.gajim.org/gajim/gajim-plugins/wikis/OmemoGajimPlugin) (Desktop OSs)
+* [ChatSecure](https://chatsecure.org/) (iOS)
 
-### Do encrypted group chats work?
-Yes.
+See https://omemo.top/ for additional clients.
 
-### Does it work in Finch?
-Mostly, but I only tried it briefly.
+### Does it work with Finch?
+It should, but I only tried it briefly.
 
-It only uses libpurple functions, so if they are implemented in the client correctly, they should work.
-That being said, indicating encrypted chats by setting the topic does not seem to work in Finch (maybe just because window titles are very short). The encryption itself does work though, which you can confirm by looking at the sent/received messages in the debug log.
-
+<a name="caveats" />
 ## Caveats
-If you don't install the additional plugin mentioned above, this is probably not the right thing to use if you have multiple clients running at the same time, as there is no message carbons support in libpurple as of now.
-MAM for "catchup" and offline messages is also not supported by libpurple.
+_OMEMO_ is not 'whatever Conversations can do', but a very specific _XEP_.
 
-Again: This plugin is _highly experimental_, so you should not trust your life on it.
+For instance, if you don't install the additional plugin mentioned above, this is probably not the right thing to use if you have multiple clients running at the same time, as there is no message carbons support in libpurple as of now.
+
+At the moment, there is no [XEP-0313: Message Archive Management](https://xmpp.org/extensions/xep-0313.html) aka _MAM_ support in _libpurple_, so there are no 'offline messages'.
+
+Finally, I can't stress this enough: This plugin is _highly experimental_, so you __should not trust your life on it__.
