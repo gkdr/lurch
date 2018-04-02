@@ -1231,7 +1231,7 @@ cleanup:
 
 /**
  * A JabberPEPHandler function.
- * On receiving a devicelist PEP update it updated the database.
+ * On receiving a devicelist PEP updates the database entry.
  */
 static void lurch_pep_devicelist_event_handler(JabberStream * js_p, const char * from, xmlnode * items_p) {
   int ret_val = 0;
@@ -2707,6 +2707,7 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
 
 cleanup:
   free(dl_ns);
+  g_list_free(accs_l_p);
   if (ret_val) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
     omemo_default_crypto_teardown();
