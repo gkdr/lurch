@@ -2021,13 +2021,15 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
   } else {
     if (!g_strcmp0(type, "chat")) {
       recipient_bare_jid = jabber_get_bare_jid(xmlnode_get_attrib(*msg_stanza_pp, "to"));
-      conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, sender, purple_connection_get_account(gc_p));
+      conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, sender, purple_connection_get_account(gc_p));
       if (!conv_p) {
-        conv_p = purple_conversation_new(PURPLE_CONV_TYPE_IM, purple_connection_get_account(gc_p), recipient_bare_jid);;
+        conv_p = purple_conversation_new(PURPLE_CONV_TYPE_IM, purple_connection_get_account(gc_p), recipient_bare_jid);
       }
       purple_conversation_write(conv_p, uname, xmlnode_get_data(xmlnode_get_child(plaintext_msg_node_p, "body")), PURPLE_MESSAGE_SEND, time((void *) 0));
       *msg_stanza_pp = (void *) 0;
     }
+
+    //TODO: for groupchats, own messages from other devices should be decrypted
   }
 
 cleanup:
