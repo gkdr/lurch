@@ -700,7 +700,7 @@ cleanup:
  * Wraps the omemo_message_export_encrypted message, so that it is called with the same options throughout.
  */
 static int lurch_export_encrypted(omemo_message * om_msg_p, char ** xml_pp) {
-  return omemo_message_export_encrypted(om_msg_p, OMEMO_ADD_MSG_BODY, xml_pp);
+  return omemo_message_export_encrypted(om_msg_p, OMEMO_ADD_MSG_EME, xml_pp);
 }
 
 /**
