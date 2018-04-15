@@ -697,6 +697,13 @@ cleanup:
 }
 
 /**
+ * Wraps the omemo_message_export_encrypted message, so that it is called with the same options throughout.
+ */
+static int lurch_export_encrypted(omemo_message * om_msg_p, char ** xml_pp) {
+  return omemo_message_export_encrypted(om_msg_p, OMEMO_ADD_MSG_BODY, xml_pp);
+}
+
+/**
  * Implements JabberIqCallback.
  * Callback for a bundle request.
  */
@@ -796,7 +803,7 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
       goto cleanup;
     }
 
-    ret_val = omemo_message_export_encrypted(qmsg_p->om_msg_p, OMEMO_ADD_MSG_EME, &msg_xml);
+    ret_val = lurch_export_encrypted(qmsg_p->om_msg_p, &msg_xml);
     if (ret_val) {
       err_msg_dbg = "failed to export the message to xml";
       goto cleanup;
@@ -982,6 +989,7 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
     goto cleanup;
   }
 
+  // don't call wrapper function here as EME is not necessary
   ret_val = omemo_message_export_encrypted(msg_p, OMEMO_ADD_MSG_NONE, &msg_xml);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to export encrypted msg");
@@ -1444,7 +1452,7 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
       goto cleanup;
     }
 
-    ret_val = omemo_message_export_encrypted(om_msg_p, OMEMO_ADD_MSG_EME, &xml);
+    ret_val = lurch_export_encrypted(om_msg_p, &xml);
     if (ret_val) {
       err_msg_dbg = g_strdup_printf("failed to export omemo msg to xml");
       goto cleanup;
@@ -1683,6 +1691,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
 
   addr_l_p = lurch_addr_list_add(addr_l_p, user_dl_p, &own_id);
 
+  //TODO remove magic number
   conv_p = purple_find_conversation_with_account(2, xmlnode_get_attrib(*msg_stanza_pp, "to"), purple_connection_get_account(gc_p));
   if (!conv_p) {
     err_msg_dbg = g_strdup_printf("could not find groupchat %s", xmlnode_get_attrib(*msg_stanza_pp, "to"));
@@ -1693,6 +1702,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
 
   nick_jid_ht_p = g_hash_table_lookup(chat_users_ht_p, purple_conversation_get_name(conv_p));
   if (!nick_jid_ht_p) {
+    //TODO: maybe show availabe keys for debugging?
     err_msg_dbg = g_strdup_printf("no entry in ht for %s!\n", purple_conversation_get_name(conv_p));
     goto cleanup;
   }
@@ -1742,6 +1752,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
     goto cleanup;
   }
 
+  //TODO: properly handle this instead of removing the body completely, necessary for full EME support
   body_node_p = xmlnode_get_child(*msg_stanza_pp, "body");
   xmlnode_free(body_node_p);
 
@@ -1917,6 +1928,11 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
 
     nick_jid_ht_p = g_hash_table_lookup(chat_users_ht_p, room_name);
     sender = g_strdup(g_hash_table_lookup(nick_jid_ht_p, buddy_nick));
+
+    if (!sender) {
+      purple_debug_misc("lurch", "Received OMEMO message in a MUC, but the sender is not present in the room. This can happen during history catchup. Skipping.\n");
+      goto cleanup;
+    }
   }
 
   ret_val = omemo_message_prepare_decryption(xmlnode_to_str(*msg_stanza_pp, &len), &msg_p);
