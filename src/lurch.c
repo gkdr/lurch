@@ -1691,8 +1691,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
 
   addr_l_p = lurch_addr_list_add(addr_l_p, user_dl_p, &own_id);
 
-  //TODO remove magic number
-  conv_p = purple_find_conversation_with_account(2, xmlnode_get_attrib(*msg_stanza_pp, "to"), purple_connection_get_account(gc_p));
+  conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, xmlnode_get_attrib(*msg_stanza_pp, "to"), purple_connection_get_account(gc_p));
   if (!conv_p) {
     err_msg_dbg = g_strdup_printf("could not find groupchat %s", xmlnode_get_attrib(*msg_stanza_pp, "to"));
     goto cleanup;
