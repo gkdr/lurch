@@ -2020,6 +2020,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     *msg_stanza_pp = plaintext_msg_node_p;
   } else {
     if (!g_strcmp0(type, "chat")) {
+      // libpurple doesn't know what to do with incoming messages addressed to someone else, so they need to be written to the conversation manually
       recipient_bare_jid = jabber_get_bare_jid(xmlnode_get_attrib(*msg_stanza_pp, "to"));
       conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, sender, purple_connection_get_account(gc_p));
       if (!conv_p) {
@@ -2027,9 +2028,10 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
       }
       purple_conversation_write(conv_p, uname, xmlnode_get_data(xmlnode_get_child(plaintext_msg_node_p, "body")), PURPLE_MESSAGE_SEND, time((void *) 0));
       *msg_stanza_pp = (void *) 0;
+    } else if (!g_strcmp0(type, "groupchat")) {
+      // incoming messages from the own account in MUCs are fine though
+      *msg_stanza_pp = plaintext_msg_node_p;
     }
-
-    //TODO: for groupchats, own messages from other devices should be decrypted
   }
 
 cleanup:
