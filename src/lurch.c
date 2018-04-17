@@ -1927,14 +1927,18 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
       err_msg_dbg = g_strdup_printf("failed to look up %s in %s", room_name, db_fn_omemo);
       goto cleanup;
     } else if (ret_val == 0) {
-      purple_conv_present_error(room_name, purple_connection_get_account(gc_p), "Received encrypted message in non-OMEMO room.");;
+      purple_conv_present_error(room_name, purple_connection_get_account(gc_p), "Received encrypted message in non-OMEMO room.");
     }
 
     nick_jid_ht_p = g_hash_table_lookup(chat_users_ht_p, room_name);
-    sender = g_strdup(g_hash_table_lookup(nick_jid_ht_p, buddy_nick));
+    if (!nick_jid_ht_p) {
+      purple_debug_warning("lurch", "Could not find MUC %s in chat table\n", room_name);
+      goto cleanup;
+    }
 
+    sender = g_strdup(g_hash_table_lookup(nick_jid_ht_p, buddy_nick));
     if (!sender) {
-      purple_debug_misc("lurch", "Received OMEMO message in a MUC, but the sender is not present in the room. This can happen during history catchup. Skipping.\n");
+      purple_debug_misc("lurch", "Received OMEMO message in MUC %s, but the sender %s is not present in the room (or its table). This can happen during history catchup, or if the room is set to anonymous. Skipping.\n", room_name, buddy_nick);
       goto cleanup;
     }
   }
