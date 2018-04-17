@@ -196,22 +196,22 @@ static void lurch_axc_log_func(int level, const char * msg, size_t len, void * u
 {
   switch(level) {
     case AXC_LOG_ERROR:
-      purple_debug_error("lurch", "[AXC ERROR] %s", msg);
+      purple_debug_error("lurch", "[AXC ERROR] %s\n", msg);
       break;
     case AXC_LOG_WARNING:
-      purple_debug_warning("lurch", "[AXC WARNING] %s", msg);
+      purple_debug_warning("lurch", "[AXC WARNING] %s\n", msg);
       break;
     case AXC_LOG_NOTICE:
-      purple_debug_info("lurch", "[AXC NOTICE] %s", msg);
+      purple_debug_info("lurch", "[AXC NOTICE] %s\n", msg);
       break;
     case AXC_LOG_INFO:
-      purple_debug_info("lurch", "[AXC INFO] %s", msg);
+      purple_debug_info("lurch", "[AXC INFO] %s\n", msg);
       break;
     case AXC_LOG_DEBUG:
-      purple_debug_misc("lurch", "[AXC DEBUG] %s", msg);
+      purple_debug_misc("lurch", "[AXC DEBUG] %s\n", msg);
       break;
     default:
-      purple_debug_misc("lurch", "[AXC %d] %s", level, msg);
+      purple_debug_misc("lurch", "[AXC %d] %s\n", level, msg);
       break;
   }
 }
@@ -236,7 +236,7 @@ static int lurch_axc_get_init_ctx(char * uname, axc_context ** ctx_pp) {
     goto cleanup;
   }
 
-  axc_context_set_log_func(ctx_p, lurch_axc_log_func);
+  // axc_context_set_log_func(ctx_p, lurch_axc_log_func);
 
   db_fn = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_AXC);
   ret_val = axc_context_set_db_fn(ctx_p, db_fn, strlen(db_fn));
