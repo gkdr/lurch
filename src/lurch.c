@@ -1815,25 +1815,30 @@ static void lurch_presence_handle(PurpleConnection * gc_p, xmlnode ** presence_s
   char * jid = (void *) 0;
 
   GHashTable * nick_jid_ht_p = (void *) 0;
-  int write_to_chat_ht = 0;
+
+  purple_debug_misc("lurch", "received presence stanza\n");
 
   from = xmlnode_get_attrib(*presence_stanza_pp, "from");
   if (!from) {
+    purple_debug_misc("lurch", "...but no from\n");
     goto cleanup;
   }
 
   x_node_p = xmlnode_get_child_with_namespace(*presence_stanza_pp, "x", "http://jabber.org/protocol/muc#user");
   if (!x_node_p) {
+    purple_debug_misc("lurch", "...but no x\n");
     goto cleanup;
   }
 
   item_node_p = xmlnode_get_child(x_node_p, "item");
   if (!item_node_p) {
+    purple_debug_misc("lurch", "...but no item\n");
     goto cleanup;
   }
 
   jid_full = xmlnode_get_attrib(item_node_p, "jid");
   if (!jid_full) {
+    purple_debug_misc("lurch", "...but no jid\n");
     goto cleanup;
   }
 
@@ -1843,17 +1848,17 @@ static void lurch_presence_handle(PurpleConnection * gc_p, xmlnode ** presence_s
   room_name = split[0];
   buddy_nick = split[1];
 
+  purple_debug_misc("lurch", "... parsed the following info:\nroom: %s\nnick: %s\nfull jid: %s\nbare jid:%s\n", room_name, buddy_nick, jid_full, jid);
+
   nick_jid_ht_p = g_hash_table_lookup(chat_users_ht_p, room_name);
   if (!nick_jid_ht_p) {
+    purple_debug_misc("lurch", "...couldn't find room name in chat HT, creating and inserting it\n");
     nick_jid_ht_p = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-    write_to_chat_ht = 1;
-  }
-
-  (void) g_hash_table_insert(nick_jid_ht_p, g_strdup(buddy_nick), g_strdup(jid));
-
-  if (write_to_chat_ht) {
     (void) g_hash_table_insert(chat_users_ht_p, room_name, nick_jid_ht_p);
   }
+
+  purple_debug_misc("lurch", "inserted jid for nick in user HT\n");
+  (void) g_hash_table_insert(nick_jid_ht_p, g_strdup(buddy_nick), g_strdup(jid));
 
 cleanup:
   g_strfreev(split);
