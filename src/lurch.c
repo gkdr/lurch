@@ -4,16 +4,9 @@
 #include <string.h>
 #include <time.h>
 
-#include "account.h"
-#include "cmds.h"
-#include "conversation.h"
-#include "debug.h"
-#include "notify.h"
-#include "plugin.h"
-#include "util.h"
-#include "version.h"
-#include "xmlnode.h"
+#include <purple.h>
 
+#include "chat.h"
 #include "jabber.h"
 #include "jutil.h"
 #include "pep.h"
@@ -74,9 +67,6 @@ int topic_changed = 0;
 int uninstall = 0;
 
 PurpleCmdId lurch_cmd_id = 0;
-
-// key: char * (name of muc), value: GHashTable * (mapping of user alias to full jid)
-GHashTable * chat_users_ht_p = (void *) 0;
 
 static void lurch_addr_list_destroy_func(gpointer data) {
   lurch_addr * addr_p = (lurch_addr *) data;
@@ -1458,6 +1448,8 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
       goto cleanup;
     }
 
+    //TODO: destroy omemo message here
+
     temp_node_p = xmlnode_from_str(xml, -1);
     *msg_stanza_pp = temp_node_p;
   } else {
@@ -1647,17 +1639,19 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
   GList * addr_l_p = (void *) 0;
   PurpleConversation * conv_p = (void *) 0;
   PurpleConvChat * chat_p = (void *) 0;
+  JabberChat * muc_p = (void *) 0;
+  JabberChatMember * curr_muc_member_p = (void *) 0;
   xmlnode * body_node_p = (void *) 0;
-  PurpleConvChatBuddy * curr_buddy_p = (void *) 0;
-  GHashTable * nick_jid_ht_p = (void *) 0;
   GList * curr_item_p = (void *) 0;
-  char * curr_buddy_jid = (void *) 0;
+  char * curr_muc_member_jid = (void *) 0;
   omemo_devicelist * curr_dl_p = (void *) 0;
+
+  const char * to = xmlnode_get_attrib(*msg_stanza_pp, "to");
 
   uname = lurch_uname_strip(purple_account_get_username(purple_connection_get_account(gc_p)));
   db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
 
-  ret_val = omemo_storage_chatlist_exists(xmlnode_get_attrib(*msg_stanza_pp, "to"), db_fn_omemo);
+  ret_val = omemo_storage_chatlist_exists(to, db_fn_omemo);
   if (ret_val < 0) {
     err_msg_dbg = g_strdup_printf("failed to access db %s", db_fn_omemo);
     goto cleanup;
@@ -1691,49 +1685,51 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
 
   addr_l_p = lurch_addr_list_add(addr_l_p, user_dl_p, &own_id);
 
-  conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, xmlnode_get_attrib(*msg_stanza_pp, "to"), purple_connection_get_account(gc_p));
+  conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, to, purple_connection_get_account(gc_p));
   if (!conv_p) {
-    err_msg_dbg = g_strdup_printf("could not find groupchat %s", xmlnode_get_attrib(*msg_stanza_pp, "to"));
+    err_msg_dbg = g_strdup_printf("could not find groupchat %s", to);
     goto cleanup;
   }
 
   chat_p = purple_conversation_get_chat_data(conv_p);
-
-  nick_jid_ht_p = g_hash_table_lookup(chat_users_ht_p, purple_conversation_get_name(conv_p));
-  if (!nick_jid_ht_p) {
-    //TODO: maybe show availabe keys for debugging?
-    err_msg_dbg = g_strdup_printf("no entry in ht for %s!\n", purple_conversation_get_name(conv_p));
+  muc_p = jabber_chat_find_by_conv(conv_p);
+  if (!muc_p) {
+    err_msg_dbg = g_strdup_printf("could not find muc struct for groupchat %s", to);
     goto cleanup;
   }
 
-  for (curr_item_p = purple_conv_chat_get_users(chat_p); curr_item_p; curr_item_p = curr_item_p->next) {
-    curr_buddy_p = (PurpleConvChatBuddy *) curr_item_p->data;
-    curr_buddy_jid = g_hash_table_lookup(nick_jid_ht_p, curr_buddy_p->name);
-    if (!curr_buddy_jid) {
-      err_msg_dbg = g_strdup_printf("Could not find the JID for %s - the channel needs to be non-anonymous!", curr_buddy_p->name);
+  for (curr_item_p = g_hash_table_get_values(muc_p->members); curr_item_p; curr_item_p = curr_item_p->next) {
+    curr_muc_member_p = (JabberChatMember *) curr_item_p->data;
+    curr_muc_member_jid = jabber_get_bare_jid(curr_muc_member_p->jid);
+
+    if (!curr_muc_member_jid) {
+      err_msg_dbg = g_strdup_printf("Could not find the JID for %s - the channel needs to be non-anonymous!", curr_muc_member_p->handle);
       purple_conv_present_error(purple_conversation_get_name(conv_p), purple_connection_get_account(gc_p), err_msg_dbg);
       g_free(err_msg_dbg);
       err_msg_dbg = (void *) 0;
       continue;
     }
 
-    if (!g_strcmp0(curr_buddy_jid, uname)) {
+    // libpurple (rightly) assumes that in MUCs the message will come back anyway so it's not written to the chat
+    // but encrypting and decrypting for yourself should not be done with the double ratchet, so the own device is skipped
+    // and the typed message written to the chat window manually without sending
+    if (!g_strcmp0(curr_muc_member_jid, uname)) {
       body_node_p = xmlnode_get_child(*msg_stanza_pp, "body");
 
-      purple_conv_chat_write(chat_p, curr_buddy_p->name, xmlnode_get_data(body_node_p), PURPLE_MESSAGE_SEND, time((void *) 0));
+      purple_conv_chat_write(chat_p, curr_muc_member_p->handle, xmlnode_get_data(body_node_p), PURPLE_MESSAGE_SEND, time((void *) 0));
       continue;
     }
 
-    ret_val = omemo_storage_user_devicelist_retrieve(curr_buddy_jid, db_fn_omemo, &curr_dl_p);
+    ret_val = omemo_storage_user_devicelist_retrieve(curr_muc_member_jid, db_fn_omemo, &curr_dl_p);
     if (ret_val) {
-      err_msg_dbg = g_strdup_printf("Could not retrieve the deviceilist for %s from %s", curr_buddy_jid, db_fn_omemo);
+      err_msg_dbg = g_strdup_printf("Could not retrieve the devicelist for %s from %s", curr_muc_member_jid, db_fn_omemo);
       goto cleanup;
     }
 
     if (omemo_devicelist_is_empty(curr_dl_p)) {
-      err_msg_dbg = g_strdup_printf("User %s is no OMEMO user (has no devicelist). "
+      err_msg_dbg = g_strdup_printf("User %s is no OMEMO user (does not have a devicelist). "
                                     "This user cannot read any incoming encrypted messages and will send his own messages in the clear!",
-                                    curr_buddy_p->name);
+                                    curr_muc_member_jid);
       purple_conv_present_error(purple_conversation_get_name(conv_p), purple_connection_get_account(gc_p), err_msg_dbg);
       g_free(err_msg_dbg);
       err_msg_dbg = (void *) 0;
@@ -1803,68 +1799,6 @@ static void lurch_xml_sent_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp) {
   }
 }
 
-static void lurch_presence_handle(PurpleConnection * gc_p, xmlnode ** presence_stanza_pp) {
-  xmlnode * x_node_p = (void *) 0;
-  xmlnode * item_node_p = (void *) 0;
-
-  const char * from = (void *) 0;
-  char ** split = (void *) 0;
-  char * room_name = (void *) 0;
-  char * buddy_nick = (void *) 0;
-  const char * jid_full = (void *) 0;
-  char * jid = (void *) 0;
-
-  GHashTable * nick_jid_ht_p = (void *) 0;
-
-  purple_debug_misc("lurch", "received presence stanza\n");
-
-  from = xmlnode_get_attrib(*presence_stanza_pp, "from");
-  if (!from) {
-    purple_debug_misc("lurch", "...but no from\n");
-    goto cleanup;
-  }
-
-  x_node_p = xmlnode_get_child_with_namespace(*presence_stanza_pp, "x", "http://jabber.org/protocol/muc#user");
-  if (!x_node_p) {
-    purple_debug_misc("lurch", "...but no x\n");
-    goto cleanup;
-  }
-
-  item_node_p = xmlnode_get_child(x_node_p, "item");
-  if (!item_node_p) {
-    purple_debug_misc("lurch", "...but no item\n");
-    goto cleanup;
-  }
-
-  jid_full = xmlnode_get_attrib(item_node_p, "jid");
-  if (!jid_full) {
-    purple_debug_misc("lurch", "...but no jid\n");
-    goto cleanup;
-  }
-
-  jid = jabber_get_bare_jid(jid_full);
-
-  split = g_strsplit(from, "/", 2);
-  room_name = split[0];
-  buddy_nick = split[1];
-
-  purple_debug_misc("lurch", "... parsed the following info:\nroom: %s\nnick: %s\nfull jid: %s\nbare jid:%s\n", room_name, buddy_nick, jid_full, jid);
-
-  nick_jid_ht_p = g_hash_table_lookup(chat_users_ht_p, room_name);
-  if (!nick_jid_ht_p) {
-    purple_debug_misc("lurch", "...couldn't find room name in chat HT, creating and inserting it\n");
-    nick_jid_ht_p = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-    (void) g_hash_table_insert(chat_users_ht_p, room_name, nick_jid_ht_p);
-  }
-
-  purple_debug_misc("lurch", "inserted jid for nick in user HT\n");
-  (void) g_hash_table_insert(nick_jid_ht_p, g_strdup(buddy_nick), g_strdup(jid));
-
-cleanup:
-  g_strfreev(split);
-  free(jid);
-}
-
 /**
  * Callback for the "receiving xmlnode" signal.
  * Decrypts message, if applicable.
@@ -1892,10 +1826,11 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
   char ** split = (void *) 0;
   char * room_name = (void *) 0;
   char * buddy_nick = (void *) 0;
-  GHashTable * nick_jid_ht_p = (void *) 0;
   xmlnode * plaintext_msg_node_p = (void *) 0;
   char * recipient_bare_jid = (void *) 0;
   PurpleConversation * conv_p = (void *) 0;
+  JabberChat * muc_p = (void *) 0;
+  JabberChatMember * muc_member_p = (void *) 0;
 
   const char * type = xmlnode_get_attrib(*msg_stanza_pp, "type");
   const char * from = xmlnode_get_attrib(*msg_stanza_pp, "from");
@@ -1930,17 +1865,30 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
       purple_conv_present_error(room_name, purple_connection_get_account(gc_p), "Received encrypted message in non-OMEMO room.");
     }
 
-    nick_jid_ht_p = g_hash_table_lookup(chat_users_ht_p, room_name);
-    if (!nick_jid_ht_p) {
-      purple_debug_warning("lurch", "Could not find MUC %s in chat table\n", room_name);
+    conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, room_name, purple_connection_get_account(gc_p));
+    if (!conv_p) {
+      err_msg_dbg = g_strdup_printf("could not find groupchat %s", room_name);
       goto cleanup;
     }
 
-    sender = g_strdup(g_hash_table_lookup(nick_jid_ht_p, buddy_nick));
-    if (!sender) {
-      purple_debug_misc("lurch", "Received OMEMO message in MUC %s, but the sender %s is not present in the room (or its table). This can happen during history catchup, or if the room is set to anonymous. Skipping.\n", room_name, buddy_nick);
+    muc_p = jabber_chat_find_by_conv(conv_p);
+    if (!muc_p) {
+      err_msg_dbg = g_strdup_printf("could not find muc struct for groupchat %s", room_name);
       goto cleanup;
     }
+
+    muc_member_p = g_hash_table_lookup(muc_p->members, buddy_nick);
+    if (!muc_member_p) {
+      purple_debug_misc("lurch", "Received OMEMO message in MUC %s, but the sender %s is not present in the room, which can happen during history catchup. Skipping.\n", room_name, buddy_nick);
+      goto cleanup;
+    }
+
+    if (!muc_member_p->jid) {
+      err_msg_dbg = g_strdup_printf("jid for user %s in muc %s not found, is the room anonymous?", buddy_nick, room_name);
+      goto cleanup;
+    }
+
+    sender = jabber_get_bare_jid(muc_member_p->jid);
   }
 
   ret_val = omemo_message_prepare_decryption(xmlnode_to_str(*msg_stanza_pp, &len), &msg_p);
@@ -2025,22 +1973,18 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
 
   plaintext_msg_node_p = xmlnode_from_str(xml, -1);
 
-  if (g_strcmp0(sender, uname)) {
-    *msg_stanza_pp = plaintext_msg_node_p;
-  } else {
-    if (!g_strcmp0(type, "chat")) {
-      // libpurple doesn't know what to do with incoming messages addressed to someone else, so they need to be written to the conversation manually
-      recipient_bare_jid = jabber_get_bare_jid(xmlnode_get_attrib(*msg_stanza_pp, "to"));
-      conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, sender, purple_connection_get_account(gc_p));
-      if (!conv_p) {
-        conv_p = purple_conversation_new(PURPLE_CONV_TYPE_IM, purple_connection_get_account(gc_p), recipient_bare_jid);
-      }
-      purple_conversation_write(conv_p, uname, xmlnode_get_data(xmlnode_get_child(plaintext_msg_node_p, "body")), PURPLE_MESSAGE_SEND, time((void *) 0));
-      *msg_stanza_pp = (void *) 0;
-    } else if (!g_strcmp0(type, "groupchat")) {
-      // incoming messages from the own account in MUCs are fine though
-      *msg_stanza_pp = plaintext_msg_node_p;
+  // libpurple doesn't know what to do with incoming messages addressed to someone else, so they need to be written to the conversation manually
+  // incoming messages from the own account in MUCs are fine though
+  if (!g_strcmp0(sender, uname) && !g_strcmp0(type, "chat")) {
+    recipient_bare_jid = jabber_get_bare_jid(xmlnode_get_attrib(*msg_stanza_pp, "to"));
+    conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, sender, purple_connection_get_account(gc_p));
+    if (!conv_p) {
+      conv_p = purple_conversation_new(PURPLE_CONV_TYPE_IM, purple_connection_get_account(gc_p), recipient_bare_jid);
     }
+    purple_conversation_write(conv_p, uname, xmlnode_get_data(xmlnode_get_child(plaintext_msg_node_p, "body")), PURPLE_MESSAGE_SEND, time((void *) 0));
+    *msg_stanza_pp = (void *) 0;
+  } else {
+    *msg_stanza_pp = plaintext_msg_node_p;
   }
 
 cleanup:
@@ -2140,9 +2084,7 @@ static void lurch_xml_received_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp)
     return;
   }
 
-  if (!g_strcmp0(node_name, "presence")) {
-    lurch_presence_handle(gc_p, stanza_pp);
-  } else if (!g_strcmp0(node_name, "message")) {
+  if (!g_strcmp0(node_name, "message")) {
     temp_node_p = xmlnode_get_child(*stanza_pp, "encrypted");
     if (temp_node_p) {
       lurch_message_decrypt(gc_p, stanza_pp);
@@ -2688,8 +2630,6 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
   GList * curr_p = (void *) 0;
   PurpleAccount * acc_p = (void *) 0;
 
-  chat_users_ht_p = g_hash_table_new_full(g_str_hash, g_str_equal, free, (void *) 0);
-
   omemo_default_crypto_init();
 
   ret_val = omemo_devicelist_get_pep_node_name(&dl_ns);
@@ -2739,7 +2679,6 @@ cleanup:
   if (ret_val) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
     omemo_default_crypto_teardown();
-    g_hash_table_destroy(chat_users_ht_p);
     return FALSE;
   }
 
