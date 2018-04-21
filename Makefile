@@ -64,6 +64,9 @@ BDIR=./build
 SDIR=./src
 HDIR=./headers
 
+TARBALL_DIR_NAME=tarball
+TARBALL_FILE_NAME=lurch-0.0.0-src.tar.gz
+
 LOMEMO_DIR=$(LDIR)/libomemo
 LOMEMO_SRC=$(LOMEMO_DIR)/src
 LOMEMO_BUILD=$(LOMEMO_DIR)/build
@@ -120,12 +123,21 @@ install-home: $(BDIR)/lurch.so
 		$(INSTALL_DIR) "$(PURPLE_HOME_PLUGIN_DIR)"
 	$(INSTALL_LIB) "$(BDIR)/lurch.so" "$(PURPLE_HOME_PLUGIN_DIR)/lurch.so"
 
+tarball: clean-all
+	$(MAKE) -C "$(AXC_DIR)" clean-all
+	$(MKDIR) tarball
+	-cp -r . tarball/
+	#rsync -av --progress . tarball/ --exclude tarball/
+	-find tarball/ -name "*.git*" -exec rm -rf "{}" \;
+	cd $(TARBALL_DIR_NAME)/ && tar czf ../$(TARBALL_FILE_NAME) * --exclude $(TARBALL_DIR_NAME) && cd .. && mv $(TARBALL_FILE_NAME) $(TARBALL_DIR_NAME)/
+
 clean:
 	$(RM_RF) "$(BDIR)"
+	$(RM_RF) "./$(TARBALL_DIR_NAME)"
 
 clean-all: clean
 	$(MAKE) -C "$(LOMEMO_DIR)" clean
 	$(MAKE) -C "$(AXC_DIR)" clean
 
-.PHONY: clean clean-all install install-home
+.PHONY: clean clean-all install install-home tarball
 
