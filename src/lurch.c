@@ -1448,8 +1448,7 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
       goto cleanup;
     }
 
-    //TODO: destroy omemo message here
-
+    omemo_message_destroy(om_msg_p);
     temp_node_p = xmlnode_from_str(xml, -1);
     *msg_stanza_pp = temp_node_p;
   } else {
