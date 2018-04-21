@@ -1,12 +1,16 @@
-# lurch 0.6.7-dev
-/lʊʁç/. In German, an Axolotl is a type of Lurch, which simply means 'amphibian'. This plugin brings _Axolotl_, by now renamed to _double ratchet_, to _libpurple_ applications such as [Pidgin](https://www.pidgin.im/) by implementing the [OMEMO](https://conversations.im/omemo/) _XMPP Extension Protocol (XEP)_.
+# lurch 0.6.7
+/lʊʁç/. In German, an Axolotl is a type of Lurch, which simply means 'amphibian'. This plugin brings _Axolotl_, by now renamed to _double ratchet_, to _libpurple_ applications such as [Pidgin](https://www.pidgin.im/) by implementing the [XEP-0384: OMEMO Encryption](https://xmpp.org/extensions/xep-0384.html). For a higher-level overview, see [the official OMEMO homepage](https://conversations.im/omemo/).
 
 (Plus I thought the word sounds funny.)
 
 ## News
+I rewrote how MUCs are handled and they should work much better now. If not, feel free to open an issue, as usual.
+
+The first Windows build of 0.6.6 was missing a compile-time flag, so if it does not work for you download it again, or get this version once available.
+
 Version 0.2 of the _OMEMO XEP_ adopted the namespace actually implemented by all the clients, so there is no need for a 'compatible' version of the plugin any longer. This mostly concerns Windows users who used the `lurch_compat.dll`, so don't be confused if it's not there.
 
-If you use a version <0.6.5, you should still definitely update.
+If you use a version <0.6.5, you should still definitely update for security reasons.
 
 ## Table of Contents
 1. [Installation](#installation)
@@ -69,7 +73,7 @@ These instructions can also be found at the provided link.
 Homebrew should have all dependencies:
 
 ```
-brew install cmake pidgin glib libxml2 libmxml sqlite libgcrypt 
+brew install cmake pidgin glib libxml2 libmxml sqlite libgcrypt
 ```
 This should work on newer versions of MacOS, but if you run into problems check out [#8](https://github.com/gkdr/lurch/issues/8#issuecomment-285937828) for some hints. Complete instructions on how to get this running with Pidgin appreciated!
 
