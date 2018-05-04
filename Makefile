@@ -44,7 +44,11 @@ PKGCFG_L=$(shell $(PKG_CONFIG) --libs sqlite3 mxml) \
 ifneq ("$(wildcard /etc/redhat-release)","")
 	LJABBER= -lxmpp
 else
+ifneq ("$(wildcard /etc/SuSE-release)","")
+	LJABBER= -lxmpp
+else
 	LJABBER= -ljabber
+endif
 endif
 
 HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
