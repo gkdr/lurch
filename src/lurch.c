@@ -18,6 +18,9 @@
 #include "axc.h"
 #include "axc_store.h"
 
+// included for error codes
+#include "signal_protocol.h"
+
 #include "lurch.h"
 
 #ifdef _WIN32
@@ -1833,6 +1836,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
 
   const char * type = xmlnode_get_attrib(*msg_stanza_pp, "type");
   const char * from = xmlnode_get_attrib(*msg_stanza_pp, "from");
+  const char * to   = xmlnode_get_attrib(*msg_stanza_pp, "to");
 
   if (uninstall) {
     goto cleanup;
@@ -1840,6 +1844,13 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
 
   uname = lurch_uname_strip(purple_account_get_username(purple_connection_get_account(gc_p)));
   db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+
+  // on prosody and possibly other servers, messages to the own account do not have a recipient
+  if (!to) {
+    recipient_bare_jid = g_strdup(uname);
+  } else {
+    recipient_bare_jid = jabber_get_bare_jid(to);
+  }
 
   if (!g_strcmp0(type, "chat")) {
     sender = jabber_get_bare_jid(from);
@@ -1933,8 +1944,15 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     if (axc_session_exists_initiated(&sender_addr, axc_ctx_p)) {
       ret_val = axc_message_decrypt_from_serialized(key_buf_p, &sender_addr, axc_ctx_p, &key_decrypted_p);
       if (ret_val) {
-        err_msg_dbg = g_strdup_printf("failed to decrypt key");
-        goto cleanup;
+        if (ret_val == SG_ERR_DUPLICATE_MESSAGE && !g_strcmp0(sender, uname) && !g_strcmp0(recipient_bare_jid, uname)) {
+          // in combination with message carbons, sending a message to your own account results in it arriving twice
+          purple_debug_warning("lurch", "ignoring decryption error due to a duplicate message from own account to own account\n");
+          *msg_stanza_pp = (void *) 0;
+          goto cleanup;
+        } else {
+          err_msg_dbg = g_strdup_printf("failed to decrypt key");
+          goto cleanup;
+        }
       }
     } else {
       purple_debug_info("lurch", "received omemo message but no session with the device exists, ignoring\n");
@@ -1975,7 +1993,6 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
   // libpurple doesn't know what to do with incoming messages addressed to someone else, so they need to be written to the conversation manually
   // incoming messages from the own account in MUCs are fine though
   if (!g_strcmp0(sender, uname) && !g_strcmp0(type, "chat")) {
-    recipient_bare_jid = jabber_get_bare_jid(xmlnode_get_attrib(*msg_stanza_pp, "to"));
     conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, recipient_bare_jid, purple_connection_get_account(gc_p));
     if (!conv_p) {
       conv_p = purple_conversation_new(PURPLE_CONV_TYPE_IM, purple_connection_get_account(gc_p), recipient_bare_jid);
