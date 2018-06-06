@@ -36,9 +36,13 @@
 
 #define LURCH_ACC_SETTING_INITIALIZED "lurch_initialised"
 
-#define LURCH_DB_SUFFIX "_db.sqlite"
+#define LURCH_DB_SUFFIX     "_db.sqlite"
 #define LURCH_DB_NAME_OMEMO "omemo"
-#define LURCH_DB_NAME_AXC "axc"
+#define LURCH_DB_NAME_AXC   "axc"
+
+#define LURCH_PREF_ROOT              "/plugins/core/lurch"
+#define LURCH_PREF_AXC_LOGGING       LURCH_PREF_ROOT "/axc_logging"
+#define LURCH_PREF_AXC_LOGGING_LEVEL LURCH_PREF_AXC_LOGGING "/level"
 
 #define LURCH_ERR           -1000000
 #define LURCH_ERR_NOMEM     -1000001
@@ -185,8 +189,7 @@ static char * lurch_uname_strip(const char * uname) {
  * @param len	the length of the message
  * @param ctx_p	the axc context
  */
-static void lurch_axc_log_func(int level, const char * msg, size_t len, void * user_data)
-{
+static void lurch_axc_log_func(int level, const char * msg, size_t len, void * user_data) {
   switch(level) {
     case AXC_LOG_ERROR:
       purple_debug_error("lurch", "[AXC ERROR] %s\n", msg);
@@ -229,8 +232,6 @@ static int lurch_axc_get_init_ctx(char * uname, axc_context ** ctx_pp) {
     goto cleanup;
   }
 
-  // axc_context_set_log_func(ctx_p, lurch_axc_log_func);
-
   db_fn = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_AXC);
   ret_val = axc_context_set_db_fn(ctx_p, db_fn, strlen(db_fn));
   if (ret_val) {
@@ -238,10 +239,19 @@ static int lurch_axc_get_init_ctx(char * uname, axc_context ** ctx_pp) {
     goto cleanup;
   }
 
+  if (purple_prefs_get_bool(LURCH_PREF_AXC_LOGGING)) {
+      axc_context_set_log_func(ctx_p, lurch_axc_log_func);
+      axc_context_set_log_level(ctx_p, purple_prefs_get_int(LURCH_PREF_AXC_LOGGING_LEVEL));
+  }
+
   ret_val = axc_init(ctx_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to init axc context");
     goto cleanup;
+  }
+
+  if (purple_prefs_get_bool(LURCH_PREF_AXC_LOGGING)) {
+    signal_context_set_log_function(axc_context_get_axolotl_ctx(ctx_p), lurch_axc_log_func);
   }
 
   *ctx_pp = ctx_p;
@@ -1256,8 +1266,6 @@ static void lurch_pep_devicelist_event_handler(JabberStream * js_p, const char *
     err_msg_dbg = g_strdup_printf("failed to import devicelist");
     goto cleanup;
   }
-
-
 
   ret_val = lurch_devicelist_process(uname, dl_in_p, js_p);
   if(ret_val) {
@@ -2702,11 +2710,49 @@ cleanup:
 }
 
 static gboolean lurch_plugin_unload(PurplePlugin * plugin_p) {
-  //g_hash_table_destroy(chat_users_ht_p);
   omemo_default_crypto_teardown();
 
   return TRUE;
 }
+
+static PurplePluginPrefFrame * lurch_get_plugin_pref_frame(PurplePlugin * plugin_p) {
+  PurplePluginPrefFrame * frame_p;
+  PurplePluginPref * ppref_p;
+
+  frame_p = purple_plugin_pref_frame_new();
+  ppref_p = purple_plugin_pref_new_with_label("Extended logging");
+  purple_plugin_pref_frame_add(frame_p, ppref_p);
+
+  ppref_p = purple_plugin_pref_new_with_name_and_label(
+                  LURCH_PREF_AXC_LOGGING,
+                  "Show log output from underlying libraries");
+  purple_plugin_pref_frame_add(frame_p, ppref_p);
+
+  ppref_p = purple_plugin_pref_new_with_name_and_label(
+                    LURCH_PREF_AXC_LOGGING_LEVEL,
+                    "Log level");
+  purple_plugin_pref_set_type(ppref_p, PURPLE_PLUGIN_PREF_CHOICE);
+  purple_plugin_pref_add_choice(ppref_p, "ERROR", GINT_TO_POINTER(AXC_LOG_ERROR));
+  purple_plugin_pref_add_choice(ppref_p, "WARNING", GINT_TO_POINTER(AXC_LOG_WARNING));
+  purple_plugin_pref_add_choice(ppref_p, "NOTICE", GINT_TO_POINTER(AXC_LOG_NOTICE));
+  purple_plugin_pref_add_choice(ppref_p, "INFO", GINT_TO_POINTER(AXC_LOG_INFO));
+  purple_plugin_pref_add_choice(ppref_p, "DEBUG", GINT_TO_POINTER(AXC_LOG_DEBUG));
+  purple_plugin_pref_frame_add(frame_p, ppref_p);
+
+  return frame_p;
+}
+
+static PurplePluginUiInfo prefs_info = {
+  lurch_get_plugin_pref_frame,
+  0,    /* page_num (Reserved) */
+  NULL, /* frame (Reserved) */
+
+  /* padding */
+  NULL,
+  NULL,
+  NULL,
+  NULL
+};
 
 static PurplePluginInfo info = {
     PURPLE_PLUGIN_MAGIC,
@@ -2733,8 +2779,8 @@ static PurplePluginInfo info = {
 
     NULL,
     NULL,
-    NULL, // plugin config, see libpurple/plugins/pluginpref_example.c
-    NULL, // plugin actions, see https://developer.pidgin.im/wiki/CHowTo/PluginActionsHowTo
+    &prefs_info, // plugin config, see libpurple/plugins/pluginpref_example.c
+    NULL,        // plugin actions, see https://developer.pidgin.im/wiki/CHowTo/PluginActionsHowTo
     NULL,
     NULL,
     NULL,
@@ -2746,6 +2792,10 @@ lurch_plugin_init(PurplePlugin * plugin_p) {
   PurplePluginInfo * info_p = plugin_p->info;
 
   info_p->dependencies = g_list_prepend(info_p->dependencies, "prpl-jabber");
+
+  purple_prefs_add_none(LURCH_PREF_ROOT);
+  purple_prefs_add_bool(LURCH_PREF_AXC_LOGGING, FALSE);
+  purple_prefs_add_int(LURCH_PREF_AXC_LOGGING_LEVEL, AXC_LOG_INFO);
 }
 
 PURPLE_INIT_PLUGIN(lurch, lurch_plugin_init, info)
