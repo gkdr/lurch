@@ -143,3 +143,5 @@ For instance, if you don't install the additional plugin mentioned above, this i
 At the moment, there is no [XEP-0313: Message Archive Management](https://xmpp.org/extensions/xep-0313.html) aka _MAM_ support in _libpurple_, so there are no 'offline messages'.
 
 Finally, I can't stress this enough: This plugin is _highly experimental_, so you __should not trust your life on it__.
+
+[Issue #113](https://github.com/gkdr/lurch/issues/113) - If you use a plugin with Lurch, such as "Privacy Please" or another plugin that will drop messages it could cause a crash in some situations. For example, you will need to disable the "Block jabber headline messages" in Privacy Please as seen [here](https://github.com/gkdr/lurch/issues/113#issuecomment-418245432)
