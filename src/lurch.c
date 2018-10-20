@@ -190,21 +190,35 @@ static char * lurch_uname_strip(const char * uname) {
  * @param ctx_p	the axc context
  */
 static void lurch_axc_log_func(int level, const char * msg, size_t len, void * user_data) {
+  (void) len;
+  axc_context * ctx_p = (axc_context *) user_data;
+  int log_level = axc_context_get_log_level(ctx_p);
+
   switch(level) {
     case AXC_LOG_ERROR:
-      purple_debug_error("lurch", "[AXC ERROR] %s\n", msg);
+      if (log_level >= AXC_LOG_WARNING) {
+        purple_debug_error("lurch", "[AXC ERROR] %s\n", msg);
+      }
       break;
     case AXC_LOG_WARNING:
-      purple_debug_warning("lurch", "[AXC WARNING] %s\n", msg);
+      if (log_level >= AXC_LOG_WARNING) {
+        purple_debug_warning("lurch", "[AXC WARNING] %s\n", msg);
+      }
       break;
     case AXC_LOG_NOTICE:
-      purple_debug_info("lurch", "[AXC NOTICE] %s\n", msg);
+      if (log_level >= AXC_LOG_NOTICE) {
+        purple_debug_info("lurch", "[AXC NOTICE] %s\n", msg);
+      }
       break;
     case AXC_LOG_INFO:
-      purple_debug_info("lurch", "[AXC INFO] %s\n", msg);
+      if (log_level >= AXC_LOG_INFO) {
+        purple_debug_info("lurch", "[AXC INFO] %s\n", msg);
+      }
       break;
     case AXC_LOG_DEBUG:
-      purple_debug_misc("lurch", "[AXC DEBUG] %s\n", msg);
+      if (log_level >= AXC_LOG_DEBUG) {
+        purple_debug_misc("lurch", "[AXC DEBUG] %s\n", msg);
+      }
       break;
     default:
       purple_debug_misc("lurch", "[AXC %d] %s\n", level, msg);
