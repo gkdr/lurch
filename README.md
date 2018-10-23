@@ -32,7 +32,7 @@ Below you can find the command to install the dependencies for popular distribut
 
 __Debian, Ubuntu__
 ``` bash
-sudo apt install git cmake libpurple-dev libmxml-dev libxml2-dev libsqlite3-dev libgcrypt20-dev
+sudo apt install git cmake libpurple-dev libmxml-dev libxml2-dev libsqlite3-dev libgcrypt20-dev build-essential
 ```
 __ArchLinux, Parabola__
 ``` bash
