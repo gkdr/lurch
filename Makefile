@@ -54,7 +54,8 @@ endif
 HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
 CFLAGS += -std=c11 -Wall -g -Wstrict-overflow $(PKGCFG_C) $(HEADERS)
 PLUGIN_CPPFLAGS=-DPURPLE_PLUGINS
-CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE
+# -D_BSD_SOURCE can be removed once nobody uses glibc <= 2.18 any more
+CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE -D_DEFAULT_SOURCE
 LDFLAGS += -ldl -lm $(PKGCFG_L) $(LJABBER)
 
 
