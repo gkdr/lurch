@@ -108,7 +108,7 @@ $(AXC_PATH):
 $(LOMEMO_PATH):
 	$(MAKE) -C "$(LOMEMO_DIR)" build/libomemo-conversations.a
 
-$(BDIR)/%.o: $(SDIR)/%.c $(BDIR)
+$(BDIR)/%.o: $(SDIR)/%.c | $(BDIR)
 	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) -c $(SDIR)/$*.c -o $@
 
 $(BDIR)/lurch.so: $(BDIR)/lurch.o $(VENDOR_LIBS)
