@@ -1795,14 +1795,21 @@ cleanup:
 }
 
 static void lurch_xml_sent_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp) {
-  xmlnode * body_node_p = (void *) 0;
+  xmlnode * body_node_p      = (void *) 0;
   xmlnode * encrypted_node_p = (void *) 0;
-  char * node_name = (*stanza_pp)->name;
-  const char * type = xmlnode_get_attrib(*stanza_pp, "type");
+  char * node_name           = (void *) 0;
+  const char * type          = (void *) 0;
 
   if (uninstall) {
     return;
   }
+
+  if (!stanza_pp || !*stanza_pp) {
+    return;
+  }
+
+  node_name = (*stanza_pp)->name;
+  type = xmlnode_get_attrib(*stanza_pp, "type");
 
   if (!g_strcmp0(node_name, "message")) {
     body_node_p = xmlnode_get_child(*stanza_pp, "body");
@@ -2115,12 +2122,18 @@ cleanup:
 }
 
 static void lurch_xml_received_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp) {
-  char * node_name = (*stanza_pp)->name;
   xmlnode * temp_node_p = (void *) 0;
+  char * node_name      = (void *) 0;
 
   if (uninstall) {
     return;
   }
+
+  if (!stanza_pp || !*stanza_pp) {
+    return;
+  }
+
+  node_name = (*stanza_pp)->name;
 
   if (!g_strcmp0(node_name, "message")) {
     temp_node_p = xmlnode_get_child(*stanza_pp, "encrypted");
