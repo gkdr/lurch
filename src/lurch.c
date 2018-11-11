@@ -2096,7 +2096,6 @@ static void lurch_message_warn(PurpleConnection * gc_p, xmlnode ** msg_stanza_pp
         purple_conv_present_error(conv_name, purple_connection_get_account(gc_p),
                                   "Even though you have an encryption session with this user, you received a plaintext message.");
       }
-    } else {
     }
   } else if (!g_strcmp0(type, "groupchat")) {
     split = g_strsplit(from, "/", 2);
