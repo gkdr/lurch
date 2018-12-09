@@ -18,12 +18,13 @@ If you use a version <0.6.5, you should still definitely update for security rea
    1. [Windows](#windows)
    1. [MacOS](#macos)
    1. [Additional plugins](#additional-plugins)
-2. [Usage](#usage)
+1. [Usage](#usage)
    1. [General](#general)
    1. [Group Chats](#group-chats)
-3. [Bug Reports](#bug-reports)
-4. [FAQ](#faq)
-5. [Caveats](#caveats)
+1. [Uninstallation](#uninstallation)
+1. [Bug Reports](#bug-reports)
+1. [FAQ](#faq)
+1. [Caveats](#caveats)
 
 ## Installation
 ### Linux
@@ -107,7 +108,19 @@ Group chats (via [XEP-0045: Multi-User Chat](https://xmpp.org/extensions/xep-004
 
 Once you have confirmed these conditions are met, every member has to activate _OMEMO_ him- or herself. Using this plugin it works by typing `/lurch enable`. Warning messages are displayed if it does not work for every user in the conference, hopefully helping to fix the issue.
 
-It is __recommended__ you confirm the fingerprints look the same on each device, including among your own.To do this, you can e.g. display all fingerprints participating in a conversation using `/lurch show fp conv`.
+It is __recommended__ you confirm the fingerprints look the same on each device, including among your own. To do this, you can e.g. display all fingerprints participating in a conversation using `/lurch show fp conv`.
+
+## Uninstallation
+In order to uninstall this plugin, you should call the `/lurch uninstall` command.
+It will remove this client from the _OMEMO_ device list, notifying other _OMEMO_ clients that they do not need to encrypt messages for it any longer.
+
+Afterwards, you can just deactivate the plugin in the _Tools > Plugins_ window.
+
+In order to completely remove all data related to this plugin, e.g. for a fresh installation, you will need to delete the following files from your _.purple_ directory:
+* _your@xmpp.account_omemo_db.sqlite_ to delete the device list cache 
+* _your@xmpp.account_axc_db.sqlite_ to delete your keypair and all sessions with other devices
+* and finally, _lurch.[so|dll]_ found in the _plugins_ directory
+
 
 ## Bug Reports
 If something does not work as expected, don't hesitate to open an issue.
