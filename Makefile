@@ -142,7 +142,7 @@ clean:
 
 clean-all: clean
 	$(MAKE) -C "$(LOMEMO_DIR)" clean
-	$(MAKE) -C "$(AXC_DIR)" clean
+	$(MAKE) -C "$(AXC_DIR)" clean-all
 
 .PHONY: clean clean-all install install-home tarball
 
