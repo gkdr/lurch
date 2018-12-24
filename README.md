@@ -22,7 +22,7 @@ If you use a version <0.6.5, you should still definitely update for security rea
    1. [General](#general)
    1. [Group Chats](#group-chats)
 1. [Uninstallation](#uninstallation)
-1. [Bug Reports](#bug-reports)
+1. [Troubleshooting](#troubleshooting)
 1. [FAQ](#faq)
 1. [Caveats](#caveats)
 
@@ -122,13 +122,41 @@ In order to completely remove all data related to this plugin, e.g. for a fresh 
 * and finally, _lurch.[so|dll]_ found in the _plugins_ directory
 
 
-## Bug Reports
+## Troubleshooting
 If something does not work as expected, don't hesitate to open an issue.
 You can also reach me on the Pidgin IRC channel (#pidgin on freenode) as `riba`, or send me an email.
 
-It will usually be helpful (i.e. I will probably ask for it anyway) if you provide me with some information from the debug log, which you can find at _Help->Debug Window_ in Pidgin.
+It will usually be helpful (i.e. I will probably ask for it anyway) if you provide me with some information from the debug log, which you can find at _Help > Debug Window_ in Pidgin.
+There, you will see a scary error from the XML parser every time you receive a message, which you can safely ignore. It is due to the nonstandard namespace used by _OMEMO_ and looks something like this: `jabber: XML parser error for JabberStream 0x5631ed678670: Domain 3, code 100, level 1: xmlns: URI eu.siacs.conversations.axolotl is not absolute`.
 
-In case it is more serious and Pidgin crashes, I will have to ask you for a backtrace.
+In addition to just reading logs, you can get a bit more active, as again I will probably ask for this anyway.
+Pidgin comes with an XMPP console, but you have to activate the plugin first (_Tools > Plugins_).
+Afterwards you can find it at _Tools > XMPP Console_ and send queries to the server.
+
+If you are having trouble sending or receiving messages, you should look up if you can find the device in the _device list_. You can do so by pasting the following into the XMPP console, replacing the `to` attribute with the device's owner's JID:
+```XML
+<iq type='get'
+    to='b@localhost'
+    id='whatever123'>
+  <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+    <items node='eu.siacs.conversations.axolotl.devicelist'/>
+  </pubsub>
+</iq>
+```
+
+Sometimes, a device might be on the list, but it did not publish a _bundle_, which is necessary to establish a session. In this case, you can query this bundle by pasting the following, replacing the `to` attribute as well as the `DEVICE_ID` suffix of the `bundles` node:
+
+```XML 
+<iq type='get' 
+    to='b@localhost'
+    id='whatever456'>
+  <pubsub xmlns='http://jabber.org/protocol/pubsub'>
+    <items node='eu.siacs.conversations.axolotl.bundles:DEVICE_ID' max_items='1'/>
+  </pubsub>
+</iq>
+```
+
+Finally, in case it is more serious and Pidgin crashes, I will have to ask you for a backtrace.
 You can obtain it in the following way:
 * Open Pidgin in gdb: `gdb pidgin`
 * Run it: `run`
