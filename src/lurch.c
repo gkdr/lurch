@@ -2404,7 +2404,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
                    " - '/lurch help': Displays this message.\n"
                    " - '/lurch uninstall': Uninstalls this device from OMEMO by removing its device ID from the devicelist.");
   } else {
-    if(purple_conversation_get_type(conv_p) == 1) {
+    if(purple_conversation_get_type(conv_p) == PURPLE_CONV_TYPE_IM) {
       if (!g_strcmp0(args[0], "blacklist")) {
         if (!g_strcmp0(args[1], "add")) {
           temp_msg_1 = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
@@ -2607,7 +2607,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
       } else {
         msg = g_strdup("Valid arguments for 'lurch' in IMs are 'show', 'remove', 'blacklist', 'uninstall', and 'help'.");
       }
-    } else if (purple_conversation_get_type(conv_p) == 2) {
+    } else if (purple_conversation_get_type(conv_p) == PURPLE_CONV_TYPE_CHAT) {
       if (!g_strcmp0(args[0], "enable")) {
         ret_val = omemo_storage_chatlist_save(purple_conversation_get_name(conv_p), db_fn_omemo);
         if (ret_val) {
