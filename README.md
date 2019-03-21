@@ -1,4 +1,4 @@
-# lurch 0.6.8
+# lurch 0.6.9-dev
 /lʊʁç/. In German, an Axolotl is a type of Lurch, which simply means 'amphibian'. This plugin brings _Axolotl_, by now renamed to _double ratchet_, to _libpurple_ applications such as [Pidgin](https://www.pidgin.im/) by implementing the [XEP-0384: OMEMO Encryption](https://xmpp.org/extensions/xep-0384.html). For a higher-level overview, see [the official OMEMO homepage](https://conversations.im/omemo/).
 
 (Plus I thought the word sounds funny.)
