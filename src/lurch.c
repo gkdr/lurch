@@ -22,6 +22,9 @@
 #include "signal_protocol.h"
 
 #include "lurch.h"
+#include "lurch_api.h"
+#include "lurch_cmd_ui.h"
+#include "lurch_util.h"
 
 #ifdef _WIN32
 #define strnlen(a, b) (MIN(strlen(a), (b)))
@@ -35,14 +38,6 @@
 #define JABBER_MAX_LEN_BARE JABBER_MAX_LEN_NODE + JABBER_MAX_LEN_DOMAIN + 1
 
 #define LURCH_ACC_SETTING_INITIALIZED "lurch_initialised"
-
-#define LURCH_DB_SUFFIX     "_db.sqlite"
-#define LURCH_DB_NAME_OMEMO "omemo"
-#define LURCH_DB_NAME_AXC   "axc"
-
-#define LURCH_PREF_ROOT              "/plugins/core/lurch"
-#define LURCH_PREF_AXC_LOGGING       LURCH_PREF_ROOT "/axc_logging"
-#define LURCH_PREF_AXC_LOGGING_LEVEL LURCH_PREF_AXC_LOGGING "/level"
 
 #define LURCH_ERR           -1000000
 #define LURCH_ERR_NOMEM     -1000001
@@ -73,7 +68,7 @@ omemo_crypto_provider crypto = {
 int topic_changed = 0;
 int uninstall = 0;
 
-PurpleCmdId lurch_cmd_id = 0;
+PurpleCmdId lurch_cmd_handle_id = 0;
 
 static void lurch_addr_list_destroy_func(gpointer data) {
   lurch_addr * addr_p = (lurch_addr *) data;
@@ -151,139 +146,6 @@ static char * lurch_queue_make_key_string_s(const char * name, const char * devi
 }
 
 /**
- * Returns the db name, has to be g_free()d.
- *
- * @param uname The username.
- * @param which Either LURCH_DB_NAME_OMEMO or LURCH_DB_NAME_AXC
- * @return The path string.
- */
-static char * lurch_uname_get_db_fn(const char * uname, char * which) {
-  return g_strconcat(purple_user_dir(), "/", uname, "_", which, LURCH_DB_SUFFIX, NULL);
-}
-
-/**
- * For some reason pidgin returns account names with a trailing "/".
- * This function removes it.
- * All other functions asking for the username assume the "/" is already stripped.
- *
- * @param uname The username.
- * @return A duplicated string with the trailing "/" removed. free() when done.
- */
-static char * lurch_uname_strip(const char * uname) {
-  char ** split;
-  char * stripped;
-
-  split = g_strsplit(uname, "/", 2);
-  stripped = g_strdup(split[0]);
-
-  g_strfreev(split);
-
-  return stripped;
-}
-
-/**
- * Log wrapper for AXC
- *
- * @param level	an AXC_LOG level
- * @param msg 	the log message
- * @param len	the length of the message
- * @param ctx_p	the axc context
- */
-static void lurch_axc_log_func(int level, const char * msg, size_t len, void * user_data) {
-  (void) len;
-  axc_context * ctx_p = (axc_context *) user_data;
-  int log_level = axc_context_get_log_level(ctx_p);
-
-  switch(level) {
-    case AXC_LOG_ERROR:
-      if (log_level >= AXC_LOG_WARNING) {
-        purple_debug_error("lurch", "[AXC ERROR] %s\n", msg);
-      }
-      break;
-    case AXC_LOG_WARNING:
-      if (log_level >= AXC_LOG_WARNING) {
-        purple_debug_warning("lurch", "[AXC WARNING] %s\n", msg);
-      }
-      break;
-    case AXC_LOG_NOTICE:
-      if (log_level >= AXC_LOG_NOTICE) {
-        purple_debug_info("lurch", "[AXC NOTICE] %s\n", msg);
-      }
-      break;
-    case AXC_LOG_INFO:
-      if (log_level >= AXC_LOG_INFO) {
-        purple_debug_info("lurch", "[AXC INFO] %s\n", msg);
-      }
-      break;
-    case AXC_LOG_DEBUG:
-      if (log_level >= AXC_LOG_DEBUG) {
-        purple_debug_misc("lurch", "[AXC DEBUG] %s\n", msg);
-      }
-      break;
-    default:
-      purple_debug_misc("lurch", "[AXC %d] %s\n", level, msg);
-      break;
-  }
-}
-
-/**
- * Creates and initializes the axc context.
- *
- * @param uname The username.
- * @param ctx_pp Will point to an initialized axc context on success.
- * @return 0 on success, negative on error.
- */
-static int lurch_axc_get_init_ctx(char * uname, axc_context ** ctx_pp) {
-  int ret_val = 0;
-  char * err_msg_dbg = (void *) 0;
-
-  axc_context * ctx_p = (void *) 0;
-  char * db_fn = (void *) 0;
-
-  ret_val = axc_context_create(&ctx_p);
-  if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to create axc context");
-    goto cleanup;
-  }
-
-  db_fn = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_AXC);
-  ret_val = axc_context_set_db_fn(ctx_p, db_fn, strlen(db_fn));
-  if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to set axc db filename");
-    goto cleanup;
-  }
-
-  if (purple_prefs_get_bool(LURCH_PREF_AXC_LOGGING)) {
-      axc_context_set_log_func(ctx_p, lurch_axc_log_func);
-      axc_context_set_log_level(ctx_p, purple_prefs_get_int(LURCH_PREF_AXC_LOGGING_LEVEL));
-  }
-
-  ret_val = axc_init(ctx_p);
-  if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to init axc context");
-    goto cleanup;
-  }
-
-  if (purple_prefs_get_bool(LURCH_PREF_AXC_LOGGING)) {
-    signal_context_set_log_function(axc_context_get_axolotl_ctx(ctx_p), lurch_axc_log_func);
-  }
-
-  *ctx_pp = ctx_p;
-
-cleanup:
-  if (ret_val) {
-    axc_context_destroy_all(ctx_p);
-  }
-  if (err_msg_dbg) {
-    purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
-  }
-
-  free (db_fn);
-  return ret_val;
-}
-
-/**
  * Does the first-time install of the axc DB.
  * As specified in OMEMO, it checks if the generated device ID already exists.
  * Therefore, it should be called at a point in time when other entries exist.
@@ -299,7 +161,7 @@ static int lurch_axc_prepare(char * uname) {
   uint32_t device_id = 0;
   char * db_fn_omemo = (void *) 0;
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to get init axc ctx");
     goto cleanup;
@@ -311,7 +173,7 @@ static int lurch_axc_prepare(char * uname) {
     goto cleanup;
   }
 
-  db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
 
   while (1) {
     ret_val = axc_install(axc_ctx_p);
@@ -495,9 +357,9 @@ static int lurch_bundle_publish_own(JabberStream * js_p) {
   char * bundle_xml = (void *) 0;
   xmlnode * publish_node_bundle_p = (void *) 0;
 
-  uname = lurch_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
+  uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to init axc ctx");
     goto cleanup;
@@ -745,7 +607,7 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
   xmlnode * msg_node_p = (void *) 0;
   lurch_queued_msg * qmsg_p = (lurch_queued_msg *) data_p;
 
-  uname = lurch_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
+  uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
   recipient = omemo_message_get_recipient_name_bare(qmsg_p->om_msg_p);
 
   if (!from) {
@@ -762,7 +624,7 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
   addr.name_len = strnlen(from, JABBER_MAX_LEN_BARE);
   addr.device_id = strtol(device_id_str, (void *) 0, 10);
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     err_msg_dbg = "failed to get axc ctx";
     goto cleanup;
@@ -943,7 +805,7 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
   xmlnode * msg_node_p = (void *) 0;
   void * jabber_handle_p = purple_plugins_find_with_id("prpl-jabber");
 
-  uname = lurch_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
+  uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
 
   addr.name = from;
   addr.name_len = strnlen(from, JABBER_MAX_LEN_BARE);
@@ -954,7 +816,7 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
   laddr.jid = g_strndup(addr.name, addr.name_len);
   laddr.device_id = addr.device_id;
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to init axc ctx");
     goto cleanup;
@@ -1064,7 +926,7 @@ static int lurch_devicelist_process(char * uname, omemo_devicelist * dl_in_p, Ja
   char * debug_str = (void *) 0;
 
   from = omemo_devicelist_get_owner(dl_in_p);
-  db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
 
   purple_debug_info("lurch", "%s: processing devicelist from %s for %s\n", __func__, from, uname);
 
@@ -1093,7 +955,7 @@ static int lurch_devicelist_process(char * uname, omemo_devicelist * dl_in_p, Ja
     }
   }
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to init axc ctx");
     goto cleanup;
@@ -1146,7 +1008,7 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
   xmlnode * publish_node_dl_p = (void *) 0;
 
   acc_p = purple_connection_get_account(js_p->gc);
-  uname = lurch_uname_strip(purple_account_get_username(acc_p));
+  uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
 
   install = (purple_account_get_bool(acc_p, LURCH_ACC_SETTING_INITIALIZED, FALSE)) ? 0 : 1;
 
@@ -1160,7 +1022,7 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
     purple_debug_info("lurch", "%s: %s\n", __func__, "...done");
   }
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to init axc ctx");
     goto cleanup;
@@ -1266,7 +1128,7 @@ static void lurch_pep_devicelist_event_handler(JabberStream * js_p, const char *
   char * uname = (void *) 0;
   omemo_devicelist * dl_in_p = (void *) 0;
 
-  uname = lurch_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
+  uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
   if (!strncmp(uname, from, strnlen(uname, JABBER_MAX_LEN_BARE))) {
     //own devicelist is dealt with in own handler
     lurch_pep_own_devicelist_request_handler(js_p, from, items_p);
@@ -1322,7 +1184,7 @@ static void lurch_account_connect_cb(PurpleAccount * acc_p) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, "failed to get devicelist pep node name", ret_val);
     goto cleanup;
   }
-  uname = lurch_uname_strip(purple_account_get_username(acc_p));
+  uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
   jabber_pep_request_item(js_p, uname, dl_ns, (void *) 0, lurch_pep_own_devicelist_request_handler);
 
 cleanup:
@@ -1541,8 +1403,8 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
   recipient = jabber_get_bare_jid(xmlnode_get_attrib(*msg_stanza_pp, "to"));
 
   acc_p = purple_connection_get_account(gc_p);
-  uname = lurch_uname_strip(purple_account_get_username(acc_p));
-  db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+  uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
 
   ret_val = omemo_storage_chatlist_exists(recipient, db_fn_omemo);
   if (ret_val < 0) {
@@ -1553,7 +1415,7 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
     goto cleanup;
   }
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to get axc ctx for %s", uname);
     goto cleanup;
@@ -1672,8 +1534,8 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
 
   const char * to = xmlnode_get_attrib(*msg_stanza_pp, "to");
 
-  uname = lurch_uname_strip(purple_account_get_username(purple_connection_get_account(gc_p)));
-  db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+  uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(gc_p)));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
 
   ret_val = omemo_storage_chatlist_exists(to, db_fn_omemo);
   if (ret_val < 0) {
@@ -1683,7 +1545,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
     goto cleanup;
   }
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to get axc ctx for %s", uname);
     goto cleanup;
@@ -1871,8 +1733,8 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     goto cleanup;
   }
 
-  uname = lurch_uname_strip(purple_account_get_username(purple_connection_get_account(gc_p)));
-  db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+  uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(gc_p)));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
 
   // on prosody and possibly other servers, messages to the own account do not have a recipient
   if (!to) {
@@ -1936,7 +1798,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     goto cleanup;
   }
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to get axc ctx for %s", uname);
     goto cleanup;
@@ -2069,10 +1931,10 @@ static void lurch_message_warn(PurpleConnection * gc_p, xmlnode ** msg_stanza_pp
   const char * type = xmlnode_get_attrib(*msg_stanza_pp, "type");
   const char * from = xmlnode_get_attrib(*msg_stanza_pp, "from");
 
-  uname = lurch_uname_strip(purple_account_get_username(purple_connection_get_account(gc_p)));
-  db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+  uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(gc_p)));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     goto cleanup;
   }
@@ -2156,8 +2018,8 @@ static int lurch_topic_update_im(PurpleConversation * conv_p) {
 
   char * new_title = (void *) 0;
 
-  uname = lurch_uname_strip(purple_account_get_username(purple_conversation_get_account(conv_p)));
-  db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+  uname = lurch_util_uname_strip(purple_account_get_username(purple_conversation_get_account(conv_p)));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
   partner_name_bare = jabber_get_bare_jid(partner_name);
 
   if (uninstall) {
@@ -2169,7 +2031,7 @@ static int lurch_topic_update_im(PurpleConversation * conv_p) {
     goto cleanup;
   }
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     goto cleanup;
   }
@@ -2213,8 +2075,8 @@ static int lurch_topic_update_chat(PurpleConversation * conv_p) {
   char * db_fn_omemo = (void *) 0;
   char * new_title = (void *) 0;
 
-  uname = lurch_uname_strip(purple_account_get_username(purple_conversation_get_account(conv_p)));
-  db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+  uname = lurch_util_uname_strip(purple_account_get_username(purple_conversation_get_account(conv_p)));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
 
   if (uninstall) {
     goto cleanup;
@@ -2328,10 +2190,10 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
   char * msg = (void *) 0;
 
-  uname = lurch_uname_strip(purple_account_get_username(purple_conversation_get_account(conv_p)));
-  db_fn_omemo = lurch_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+  uname = lurch_util_uname_strip(purple_account_get_username(purple_conversation_get_account(conv_p)));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
 
-  ret_val = lurch_axc_get_init_ctx(uname, &axc_ctx_p);
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     err_msg = g_strdup("Failed to create axc ctx.");
     goto cleanup;
@@ -2673,7 +2535,6 @@ cleanup:
 static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
   int ret_val = 0;
   char * err_msg_dbg = (void *) 0;
-
   char * dl_ns = (void *) 0;
   void * jabber_handle_p = (void *) 0;
   GList * accs_l_p = (void *) 0;
@@ -2681,6 +2542,7 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
   PurpleAccount * acc_p = (void *) 0;
 
   omemo_default_crypto_init();
+  lurch_api_init();
 
   ret_val = omemo_devicelist_get_pep_node_name(&dl_ns);
   if (ret_val) {
@@ -2688,7 +2550,7 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
     goto cleanup;
   }
 
-  lurch_cmd_id = purple_cmd_register("lurch",
+  lurch_cmd_handle_id = purple_cmd_register("lurch",
                                      "wwws",
                                      PURPLE_CMD_P_PLUGIN,
                                      PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY | PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS,
@@ -2697,6 +2559,16 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
                                      "lurch &lt;help&gt;:  "
                                      "Interface to the lurch plugin. For details, use the 'help' argument.",
                                      (void *) 0);
+
+  purple_cmd_register("lurch-v2",
+                      "wwws",
+                      PURPLE_CMD_P_PLUGIN,
+                      PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY | PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS,
+                      JABBER_PROTOCOL_ID,
+                      lurch_cmd_func_v2,
+                      "lurch &lt;help&gt;:  "
+                      "NEW interface to the lurch plugin. For details, use the 'help' argument.",
+                      (void *) 0);
 
   // register handlers
   jabber_handle_p = purple_plugins_find_with_id(JABBER_PROTOCOL_ID);
@@ -2736,6 +2608,9 @@ cleanup:
 }
 
 static gboolean lurch_plugin_unload(PurplePlugin * plugin_p) {
+  purple_cmd_unregister(lurch_cmd_handle_id);
+  //TODO: disconnect all signal handlers
+
   omemo_default_crypto_teardown();
 
   return TRUE;
