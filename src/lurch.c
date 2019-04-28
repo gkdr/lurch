@@ -2609,7 +2609,7 @@ cleanup:
 
 static gboolean lurch_plugin_unload(PurplePlugin * plugin_p) {
   purple_cmd_unregister(lurch_cmd_handle_id);
-  //TODO: disconnect all signal handlers
+  lurch_api_unload();
 
   omemo_default_crypto_teardown();
 

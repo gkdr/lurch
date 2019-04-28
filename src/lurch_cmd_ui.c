@@ -2,6 +2,8 @@
 #include <glib.h>
 #include <purple.h>
 
+#include "libomemo.h"
+
 static void lurch_cmd_print(PurpleConversation * conv_p, const char * msg) {
   purple_conversation_write(conv_p, "lurch", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time((void *) 0));  
 }
@@ -30,11 +32,48 @@ static void lurch_cmd_help(PurpleConversation * conv_p) {
 void lurch_id_show_print(int32_t err, uint32_t id, void * user_data_p) {
   PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
 
+  char * msg = (void *) 0;
+
   if (err) {
-    lurch_cmd_print(conv_p, "An error occured when trying to retrieve this device's ID. Check the debug log for details.");
-  } else {
-    lurch_cmd_print(conv_p, g_strdup_printf("id from callback is %i", id));
+    lurch_cmd_print_err(conv_p, "An error occured when trying to retrieve this device's ID. Check the debug log for details.");
+    return;
   }
+
+  msg = g_strdup_printf("This device's ID is %i", id); 
+  lurch_cmd_print(conv_p, msg);
+
+  g_free(msg);
+}
+
+void lurch_id_list_print(int32_t err, GList * id_list, void * user_data_p) {
+  PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
+
+  char * temp_msg_1 = g_strdup("Your devicelist is:\n");
+  char * temp_msg_2 = (void *) 0;
+  char * temp_msg_3 = (void *) 0;
+
+  GList * curr_p = (void *) 0;
+
+  if (err) {
+    lurch_cmd_print_err(conv_p, "An error occured when trying to retrieve your ID list. Check the debug log for details.");
+    return;
+  }
+
+  for (curr_p = id_list; curr_p; curr_p = curr_p->next) {
+    temp_msg_2 = g_strdup_printf("%i\n", omemo_devicelist_list_data(curr_p));
+    temp_msg_3 = g_strconcat(temp_msg_1, temp_msg_2, NULL);
+
+    g_free(temp_msg_1);
+    temp_msg_1 = temp_msg_3;
+    g_free(temp_msg_2);
+
+    temp_msg_2 = (void *) 0;
+    temp_msg_3 = (void *) 0;
+  }
+
+  lurch_cmd_print(conv_p, temp_msg_1);
+
+  g_free(temp_msg_1);
 }
 
 static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg) {
@@ -43,8 +82,10 @@ static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg) {
 
   if (!g_strcmp0(arg, "show")) {
     purple_signal_emit(purple_plugins_get_handle(), "lurch-id-show", purple_conversation_get_account(conv_p), lurch_id_show_print, conv_p);
+  } else if (!g_strcmp0(arg, "list")) {
+    purple_signal_emit(purple_plugins_get_handle(), "lurch-id-list", purple_conversation_get_account(conv_p), lurch_id_list_print, conv_p);
   } else {
-    msg = g_strdup("Valid argument for 'id' is 'show'.");
+    msg = g_strdup("Valid arguments for 'id' are 'show' or 'list'.");
   }
 
   if (err_msg) {

@@ -5,4 +5,7 @@
  */
 void lurch_api_init();
 
-//TODO: unregister everything
+/**
+* Unregisters the signals and disconnects the signal handlers.
+*/
+void lurch_api_unload();
