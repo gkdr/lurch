@@ -2,6 +2,8 @@
 #include <glib.h>
 #include <purple.h>
 
+#include "jutil.h"
+
 #include "libomemo.h"
 
 static void lurch_cmd_print(PurpleConversation * conv_p, const char * msg) {
@@ -76,29 +78,51 @@ void lurch_id_list_print(int32_t err, GList * id_list, void * user_data_p) {
   g_free(temp_msg_1);
 }
 
-static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg) {
-  char * msg = (void *) 0;
-  char * err_msg = (void *) 0;
+void lurch_enable_print(int32_t err, void * user_data_p) {
+  PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
 
-  if (!g_strcmp0(arg, "show")) {
-    purple_signal_emit(purple_plugins_get_handle(), "lurch-id-show", purple_conversation_get_account(conv_p), lurch_id_show_print, conv_p);
-  } else if (!g_strcmp0(arg, "list")) {
-    purple_signal_emit(purple_plugins_get_handle(), "lurch-id-list", purple_conversation_get_account(conv_p), lurch_id_list_print, conv_p);
-  } else {
-    msg = g_strdup("Valid arguments for 'id' are 'show' or 'list'.");
+  if (err) {
+    lurch_cmd_print_err(conv_p, "Failed to enable OMEMO for this conversation.");
+    return;
   }
-
-  if (err_msg) {
-    lurch_cmd_print_err(conv_p, err_msg);
-  } else if (msg) {
-    lurch_cmd_print(conv_p, msg);
-  }
-
-  free(msg);
-  free(err_msg);
+  
+  purple_conversation_autoset_title(conv_p);
+  lurch_cmd_print(conv_p, "Successfully enabled OMEMO.");
 }
 
-typedef void (*LurchIdShowCallback)(uint32_t id, void * data_p);
+static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg) {
+  PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
+
+  if (!g_strcmp0(arg, "show")) {
+    purple_signal_emit(purple_plugins_get_handle(), "lurch-id-show", acc_p, lurch_id_show_print, conv_p);
+  } else if (!g_strcmp0(arg, "list")) {
+    purple_signal_emit(purple_plugins_get_handle(), "lurch-id-list", acc_p, lurch_id_list_print, conv_p);
+  } else {
+    lurch_cmd_print(conv_p, "Valid arguments for 'id' are 'show' or 'list'.");
+  }
+}
+
+static void lurch_cmd_enable(PurpleConversation * conv_p) {
+  PurpleConversationType conv_type = purple_conversation_get_type(conv_p);
+  char * conv_bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
+
+  if (conv_type == PURPLE_CONV_TYPE_IM) {
+    purple_signal_emit(purple_plugins_get_handle(), "lurch-enable-im", purple_conversation_get_account(conv_p), conv_bare_jid, lurch_enable_print, conv_p);
+  }
+
+  g_free(conv_bare_jid);
+}
+
+static void lurch_cmd_disable(PurpleConversation * conv_p) {
+  PurpleConversationType conv_type = purple_conversation_get_type(conv_p);
+  char * conv_bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
+
+  if (conv_type == PURPLE_CONV_TYPE_IM) {
+
+  }
+
+  g_free(conv_bare_jid);
+}
 
 PurpleCmdRet lurch_cmd_func_v2(PurpleConversation * conv_p,
                                    const gchar * cmd,
@@ -109,6 +133,9 @@ PurpleCmdRet lurch_cmd_func_v2(PurpleConversation * conv_p,
 
   if (!g_strcmp0(command, "help")) {
     lurch_cmd_help(conv_p);
+  } else if (!g_strcmp0(command, "enable")) {
+    lurch_cmd_enable(conv_p);
+  } else if (!g_strcmp0(command, "disable")) {
   } else if (!g_strcmp0(command, "id")) {
     lurch_cmd_id(conv_p, args[1]);
   } else {
