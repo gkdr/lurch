@@ -69,6 +69,7 @@ int topic_changed = 0;
 int uninstall = 0;
 
 PurpleCmdId lurch_cmd_handle_id = 0;
+PurpleCmdId lurch_cmd_v2_handle_id = 0;
 
 static void lurch_addr_list_destroy_func(gpointer data) {
   lurch_addr * addr_p = (lurch_addr *) data;
@@ -2560,7 +2561,7 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
                                      "Interface to the lurch plugin. For details, use the 'help' argument.",
                                      (void *) 0);
 
-  purple_cmd_register("lurch-v2",
+  lurch_cmd_v2_handle_id = purple_cmd_register("lurch-v2",
                       "wwws",
                       PURPLE_CMD_P_PLUGIN,
                       PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY | PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS,
@@ -2609,6 +2610,8 @@ cleanup:
 
 static gboolean lurch_plugin_unload(PurplePlugin * plugin_p) {
   purple_cmd_unregister(lurch_cmd_handle_id);
+  purple_cmd_unregister(lurch_cmd_v2_handle_id);
+
   lurch_api_unload();
 
   omemo_default_crypto_teardown();

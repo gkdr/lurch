@@ -86,96 +86,94 @@ void lurch_api_enable_im_handler(PurpleAccount * acc_p, const char * contact_bar
   g_free(db_fn_omemo);
 }
 
-// const char * signals[2] = {"lurch-id-show", "lurch-id-list"};
-// const void * handlers[2] = {lurch_api_id_show_handler, lurch_api_id_list_handler};
+typedef enum {
+  LURCH_API_HANDLER_ACC_CB_DATA = 0,
+  LURCH_API_HANDLER_ACC_JID_CB_DATA
+} lurch_api_handler_t;
+
+/**
+ * When adding a new signal: increase this number and add the name, handler function, and handler function type
+ * to the respective array.
+ */
+#define NUM_OF_SIGNALS 3
+
+const char * signal_names[NUM_OF_SIGNALS] = {
+  "lurch-id-show",
+  "lurch-id-list",
+  "lurch-enable-im"
+};
+
+const void * signal_handlers[NUM_OF_SIGNALS] = {
+  lurch_api_id_show_handler,
+  lurch_api_id_list_handler,
+  lurch_api_enable_im_handler
+};
+
+const lurch_api_handler_t signal_handler_types[NUM_OF_SIGNALS] = {
+  LURCH_API_HANDLER_ACC_CB_DATA,
+  LURCH_API_HANDLER_ACC_CB_DATA,
+  LURCH_API_HANDLER_ACC_JID_CB_DATA
+};
 
 void lurch_api_init() {
   void * plugins_handle_p = purple_plugins_get_handle();
-    
-  purple_signal_register(
-    plugins_handle_p,
-    "lurch-id-show",
-    purple_marshal_VOID__POINTER_POINTER_POINTER,
-    NULL,
-    3,
-    purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_ACCOUNT),
-    purple_value_new(PURPLE_TYPE_POINTER),
-    purple_value_new(PURPLE_TYPE_POINTER)
-  );
 
-  purple_signal_register(
-    plugins_handle_p,
-    "lurch-id-list",
-    purple_marshal_VOID__POINTER_POINTER_POINTER,
-    NULL,
-    3,
-    purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_ACCOUNT),
-    purple_value_new(PURPLE_TYPE_POINTER),
-    purple_value_new(PURPLE_TYPE_POINTER)
-  );
+  for (int i = 0; i < NUM_OF_SIGNALS; i++) {
+    const char * signal_name = signal_names[i];
 
-  purple_signal_register(
-    plugins_handle_p,
-    "lurch-enable-im",
-    purple_marshal_VOID__POINTER_POINTER_POINTER_POINTER,
-    NULL,
-    4,
-    purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_ACCOUNT),
-    purple_value_new(PURPLE_TYPE_STRING),
-    purple_value_new(PURPLE_TYPE_POINTER),
-    purple_value_new(PURPLE_TYPE_POINTER)
-  );
+    switch (signal_handler_types[i]) {
+      case LURCH_API_HANDLER_ACC_CB_DATA:
+        purple_signal_register(
+          plugins_handle_p,
+          signal_name,
+          purple_marshal_VOID__POINTER_POINTER_POINTER,
+          NULL,
+          3,
+          purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_ACCOUNT),
+          purple_value_new(PURPLE_TYPE_POINTER),
+          purple_value_new(PURPLE_TYPE_POINTER)
+        );
+        break;
+      case LURCH_API_HANDLER_ACC_JID_CB_DATA:
+        purple_signal_register(
+          plugins_handle_p,
+          signal_name,
+          purple_marshal_VOID__POINTER_POINTER_POINTER_POINTER,
+          NULL,
+          4,
+          purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_ACCOUNT),
+          purple_value_new(PURPLE_TYPE_STRING),
+          purple_value_new(PURPLE_TYPE_POINTER),
+          purple_value_new(PURPLE_TYPE_POINTER)
+        );
+        break;
+      default:
+        purple_debug_fatal(MODULE_NAME, "Unknown hander function type, aborting initialization.");
+    }
 
-  purple_signal_connect(
-    plugins_handle_p,
-    "lurch-id-show",
-    MODULE_NAME,
-    PURPLE_CALLBACK(lurch_api_id_show_handler),
-    NULL
-  );
-
-  purple_signal_connect(
-    plugins_handle_p,
-    "lurch-id-list",
-    MODULE_NAME,
-    PURPLE_CALLBACK(lurch_api_id_list_handler),
-    NULL
-  );
-
-  purple_signal_connect(
-    plugins_handle_p,
-    "lurch-enable-im",
-    MODULE_NAME,
-    PURPLE_CALLBACK(lurch_api_enable_im_handler),
-    NULL
-  );
+    purple_signal_connect(
+      plugins_handle_p,
+      signal_name,
+      MODULE_NAME,
+      PURPLE_CALLBACK(signal_handlers[i]),
+      NULL
+    );
+  }
 }
 
 void lurch_api_unload() {
   void * plugins_handle_p = purple_plugins_get_handle();
 
-  purple_signal_disconnect(
-    plugins_handle_p,
-    "lurch-id-show",
-    MODULE_NAME,
-    PURPLE_CALLBACK(lurch_api_id_show_handler)
-  );
+  for (int i = 0; i < NUM_OF_SIGNALS; i++) {
+    const char * signal_name = signal_names[i];
 
-  purple_signal_disconnect(
-    plugins_handle_p,
-    "lurch-id-list",
-    MODULE_NAME,
-    PURPLE_CALLBACK(lurch_api_id_list_handler)
-  );
+    purple_signal_disconnect(
+      plugins_handle_p,
+      signal_name,
+      MODULE_NAME,
+      PURPLE_CALLBACK(signal_handlers[i])
+    );
 
-  purple_signal_disconnect(
-    plugins_handle_p,
-    "lurch-enable-im",
-    MODULE_NAME,
-    PURPLE_CALLBACK(lurch_api_enable_im_handler)
-  );
-
-  purple_signal_unregister(purple_plugins_get_handle(), "lurch-id-show");
-  purple_signal_unregister(purple_plugins_get_handle(), "lurch-id-list");
-  purple_signal_unregister(purple_plugins_get_handle(), "lurch-enable-im");
+    purple_signal_unregister(plugins_handle_p, signal_name);
+  }
 }
