@@ -90,6 +90,18 @@ void lurch_enable_print(int32_t err, void * user_data_p) {
   lurch_cmd_print(conv_p, "Successfully enabled OMEMO.");
 }
 
+void lurch_disable_print(int32_t err, void * user_data_p) {
+  PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
+
+  if (err) {
+    lurch_cmd_print_err(conv_p, "Failed to disable OMEMO for this conversation.");
+    return;
+  }
+  
+  purple_conversation_autoset_title(conv_p);
+  lurch_cmd_print(conv_p, "Successfully disabled OMEMO.");
+}
+
 static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg) {
   PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
 
@@ -118,7 +130,7 @@ static void lurch_cmd_disable(PurpleConversation * conv_p) {
   char * conv_bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
 
   if (conv_type == PURPLE_CONV_TYPE_IM) {
-
+    purple_signal_emit(purple_plugins_get_handle(), "lurch-disable-im", purple_conversation_get_account(conv_p), conv_bare_jid, lurch_disable_print, conv_p);
   }
 
   g_free(conv_bare_jid);
@@ -136,6 +148,7 @@ PurpleCmdRet lurch_cmd_func_v2(PurpleConversation * conv_p,
   } else if (!g_strcmp0(command, "enable")) {
     lurch_cmd_enable(conv_p);
   } else if (!g_strcmp0(command, "disable")) {
+    lurch_cmd_disable(conv_p);
   } else if (!g_strcmp0(command, "id")) {
     lurch_cmd_id(conv_p, args[1]);
   } else {
