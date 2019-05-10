@@ -2132,36 +2132,6 @@ static void lurch_conv_updated_cb(PurpleConversation * conv_p, PurpleConvUpdateT
   }
 }
 
-/**
- * Creates a fingerprint which resembles the one displayed by Conversations etc.
- * Also useful for avoiding the smileys produced by ':d'...
- *
- * @param fp The fingerprint string as returned by purple_base16_encode_chunked
- * @return A newly allocated string which contains the fingerprint in printable format, or NULL.
- */
-static char * lurch_fp_printable(const char * fp) {
-  char ** split = (void *) 0;
-  char * temp1 = (void *) 0;
-  char * temp2 = (void *) 0;
-
-  if (!fp) {
-    return (void *) 0;
-  }
-
-  split = g_strsplit(fp, ":", 0);
-  temp2 = g_strdup("");
-
-  for (int i = 1; i <= 32; i += 4) {
-    temp1 = g_strconcat(temp2, split[i], split[i+1], split[i+2], split[i+3], " ", NULL);
-    g_free(temp2);
-    temp2 = g_strdup(temp1);
-    g_free(temp1);
-  }
-
-  g_strfreev(split);
-  return temp2;
-}
-
 static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
                                    const gchar * cmd,
                                    gchar ** args,
@@ -2337,7 +2307,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
             }
 
             fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
-            fp_printable = lurch_fp_printable(fp);
+            fp_printable = lurch_util_fp_get_printable(fp);
             msg = g_strdup_printf("This device's fingerprint is:\n%s\n"
                                   "You should make sure that your conversation partner gets displayed the same for this device.", fp_printable);
           } else if (!g_strcmp0(args[2], "conv")) {
@@ -2349,7 +2319,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
             }
 
             fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
-            fp_printable = lurch_fp_printable(fp);
+            fp_printable = lurch_util_fp_get_printable(fp);
 
             temp_msg_1 = g_strdup_printf("The devices participating in this conversation and their fingerprints are as follows:\n"
                                          "This device's (%s:%i) fingerprint:\n%s\n", uname, id, fp_printable);
@@ -2373,7 +2343,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
                 g_free(fp);
                 fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
-                fp_printable = lurch_fp_printable(fp);
+                fp_printable = lurch_util_fp_get_printable(fp);
                 axc_buf_free(key_buf_p);
                 key_buf_p = (void *) 0;
 
@@ -2407,7 +2377,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
 
               g_free(fp);
               fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
-              fp_printable = lurch_fp_printable(fp);
+              fp_printable = lurch_util_fp_get_printable(fp);
               axc_buf_free(key_buf_p);
               key_buf_p = (void *) 0;
 

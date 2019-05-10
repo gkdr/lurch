@@ -122,3 +122,26 @@ char * lurch_util_uname_strip(const char * uname) {
 char * lurch_util_uname_get_db_fn(const char * uname, const char * which) {
   return g_strconcat(purple_user_dir(), "/", uname, "_", which, LURCH_DB_SUFFIX, NULL);
 }
+
+char * lurch_util_fp_get_printable(const char * fp) {
+  char ** split = (void *) 0;
+  char * temp1 = (void *) 0;
+  char * temp2 = (void *) 0;
+
+  if (!fp) {
+    return (void *) 0;
+  }
+
+  split = g_strsplit(fp, ":", 0);
+  temp2 = g_strdup("");
+
+  for (int i = 1; i <= 32; i += 4) {
+    temp1 = g_strconcat(temp2, split[i], split[i+1], split[i+2], split[i+3], " ", NULL);
+    g_free(temp2);
+    temp2 = g_strdup(temp1);
+    g_free(temp1);
+  }
+
+  g_strfreev(split);
+  return temp2;
+}

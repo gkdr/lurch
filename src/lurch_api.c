@@ -11,8 +11,7 @@
 #define MODULE_NAME "lurch-api"
 
 void lurch_api_id_show_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, uint32_t id, void * user_data_p), void * user_data_p) {
-  int ret_val = 0;
-  int32_t err = 0;
+  int32_t ret_val = 0;
   char * uname = (void *) 0;
   axc_context * axc_ctx_p = (void *) 0;
   uint32_t id = 0;
@@ -22,19 +21,17 @@ void lurch_api_id_show_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, ui
   ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
   if (ret_val) {
     purple_debug_error(MODULE_NAME, "Failed to create axc ctx.\n");
-    err = ret_val;
     goto cleanup;
   }
 
   ret_val = axc_get_device_id(axc_ctx_p, &id);
   if (ret_val) {
     purple_debug_error(MODULE_NAME, "Failed to access axc db %s. Does the path seem correct?", axc_context_get_db_fn(axc_ctx_p));
-    err = ret_val;
     goto cleanup;
   }
 
 cleanup:
-  cb(err, id, user_data_p);
+  cb(ret_val, id, user_data_p);
 
   axc_context_destroy_all(axc_ctx_p);
   g_free(uname);
@@ -106,6 +103,40 @@ void lurch_api_disable_im_handler(PurpleAccount * acc_p, const char * contact_ba
   g_free(db_fn_omemo);
 }
 
+void lurch_api_fp_get_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, const char * fp_printable, void * user_data_p), void * user_data_p) {
+  int32_t ret_val = 0;
+  char * uname = (void *) 0;
+  axc_context * axc_ctx_p = (void *) 0;
+  axc_buf * key_buf_p = (void *) 0;
+  gchar * fp = (void *) 0;
+  char * fp_printable = (void *) 0;
+
+  uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
+
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
+  if (ret_val) {
+    purple_debug_error(MODULE_NAME, "Failed to create axc ctx.\n");
+    goto cleanup;
+  }
+
+  ret_val = axc_key_load_public_own(axc_ctx_p, &key_buf_p);
+  if (ret_val) {
+    purple_debug_error("Failed to load public key from axc db %s.", axc_context_get_db_fn(axc_ctx_p));
+    goto cleanup;
+  }
+
+  fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
+  fp_printable = lurch_util_fp_get_printable(fp);
+
+cleanup:
+  cb(ret_val, fp_printable, user_data_p);
+
+  g_free(fp_printable);
+  g_free(fp);
+  axc_buf_free(key_buf_p);
+  axc_context_destroy_all(axc_ctx_p);
+}
+
 typedef enum {
   LURCH_API_HANDLER_ACC_CB_DATA = 0,
   LURCH_API_HANDLER_ACC_JID_CB_DATA
@@ -115,27 +146,30 @@ typedef enum {
  * When adding a new signal: increase this number and add the name, handler function, and handler function type
  * to the respective array.
  */
-#define NUM_OF_SIGNALS 4
+#define NUM_OF_SIGNALS 5
 
 const char * signal_names[NUM_OF_SIGNALS] = {
   "lurch-id-show",
   "lurch-id-list",
   "lurch-enable-im",
-  "lurch-disable-im"
+  "lurch-disable-im",
+  "lurch-fp-get"
 };
 
 const void * signal_handlers[NUM_OF_SIGNALS] = {
   lurch_api_id_show_handler,
   lurch_api_id_list_handler,
   lurch_api_enable_im_handler,
-  lurch_api_disable_im_handler
+  lurch_api_disable_im_handler,
+  lurch_api_fp_get_handler
 };
 
 const lurch_api_handler_t signal_handler_types[NUM_OF_SIGNALS] = {
   LURCH_API_HANDLER_ACC_CB_DATA,
   LURCH_API_HANDLER_ACC_CB_DATA,
   LURCH_API_HANDLER_ACC_JID_CB_DATA,
-  LURCH_API_HANDLER_ACC_JID_CB_DATA
+  LURCH_API_HANDLER_ACC_JID_CB_DATA,
+  LURCH_API_HANDLER_ACC_CB_DATA
 };
 
 void lurch_api_init() {
@@ -171,7 +205,7 @@ void lurch_api_init() {
         );
         break;
       default:
-        purple_debug_fatal(MODULE_NAME, "Unknown hander function type, aborting initialization.");
+        purple_debug_fatal(MODULE_NAME, "Unknown handler function type, aborting initialization.");
     }
 
     purple_signal_connect(
