@@ -2,10 +2,13 @@
 #include <glib.h>
 #include <purple.h>
 
+#include "pep.h"
+
 #include "axc.h"
 #include "libomemo.h"
 #include "libomemo_storage.h"
 
+#include "lurch_api.h"
 #include "lurch_util.h"
 
 #define MODULE_NAME "lurch-api"
@@ -63,6 +66,54 @@ void lurch_api_id_list_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, GL
   g_free(db_fn_omemo);
   omemo_devicelist_destroy(dl_p);
   g_list_free_full(id_list, free);
+}
+
+void lurch_api_id_remove_handler(PurpleAccount * acc_p, uint32_t device_id, void (*cb)(int32_t err, void * user_data_p), void * user_data_p) {
+  int32_t ret_val = 0;
+  char * uname = (void *) 0;
+  char * db_fn_omemo = (void *) 0;
+  omemo_devicelist * dl_p = (void *) 0;
+  char * exported_devicelist = (void *) 0;
+  xmlnode * publish_node_p = (void *) 0;
+
+  uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+
+  ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &dl_p);
+  if (ret_val) {
+    purple_debug_error(MODULE_NAME, "Failed to access the OMEMO DB %s to retrieve the devicelist.", db_fn_omemo);
+    goto cleanup;
+  }
+
+  if (!omemo_devicelist_contains_id(dl_p, device_id)) {
+    ret_val = LURCH_ERR_DEVICE_NOT_IN_LIST;
+    purple_debug_error(MODULE_NAME, "Your devicelist does not contain the device ID %i.", device_id);
+    goto cleanup;
+  }
+
+  ret_val = omemo_devicelist_remove(dl_p, device_id);
+  if (ret_val) {
+    purple_debug_error(MODULE_NAME, "Failed to remove the device ID %i from %s's devicelist.", device_id, uname);
+    goto cleanup;
+  }
+
+  ret_val = omemo_devicelist_export(dl_p, &exported_devicelist);
+  if (ret_val) {
+    purple_debug_error(MODULE_NAME, "Failed to export new devicelist without device ID %i.", device_id);
+    goto cleanup;
+  }
+
+  publish_node_p = xmlnode_from_str(exported_devicelist, -1);
+  jabber_pep_publish(purple_connection_get_protocol_data(purple_account_get_connection(acc_p)), publish_node_p);
+  // publish_node_p will be freed by the jabber prpl
+
+cleanup:
+  cb(ret_val, user_data_p);
+
+  g_free(uname);
+  g_free(db_fn_omemo);
+  omemo_devicelist_destroy(dl_p);
+  g_free(exported_devicelist);
 }
 
 void lurch_api_enable_im_handler(PurpleAccount * acc_p, const char * contact_bare_jid, void (*cb)(int32_t err, void * user_data_p), void * user_data_p) {
@@ -137,20 +188,32 @@ cleanup:
   axc_context_destroy_all(axc_ctx_p);
 }
 
+static void lurch_api_marshal_VOID__POINTER_INT_POINTER_POINTER(PurpleCallback cb, va_list args, void * data, void ** return_val) {
+	void * arg1 = va_arg(args, void *);
+	gint32 arg2 = va_arg(args, guint);
+  void * arg3 = va_arg(args, void *);
+  void * arg4 = va_arg(args, void *);
+
+	((void (*)(void *, guint, void *, void *, void *))cb)(arg1, arg2, arg3, arg4, data);
+}
+
+
 typedef enum {
   LURCH_API_HANDLER_ACC_CB_DATA = 0,
-  LURCH_API_HANDLER_ACC_JID_CB_DATA
+  LURCH_API_HANDLER_ACC_JID_CB_DATA,
+  LURCH_API_HANDLER_ACC_DID_CB_DATA
 } lurch_api_handler_t;
 
 /**
  * When adding a new signal: increase this number and add the name, handler function, and handler function type
  * to the respective array.
  */
-#define NUM_OF_SIGNALS 5
+#define NUM_OF_SIGNALS 6
 
 const char * signal_names[NUM_OF_SIGNALS] = {
   "lurch-id-show",
   "lurch-id-list",
+  "lurch-id-remove",
   "lurch-enable-im",
   "lurch-disable-im",
   "lurch-fp-get"
@@ -159,6 +222,7 @@ const char * signal_names[NUM_OF_SIGNALS] = {
 const void * signal_handlers[NUM_OF_SIGNALS] = {
   lurch_api_id_show_handler,
   lurch_api_id_list_handler,
+  lurch_api_id_remove_handler,
   lurch_api_enable_im_handler,
   lurch_api_disable_im_handler,
   lurch_api_fp_get_handler
@@ -167,6 +231,7 @@ const void * signal_handlers[NUM_OF_SIGNALS] = {
 const lurch_api_handler_t signal_handler_types[NUM_OF_SIGNALS] = {
   LURCH_API_HANDLER_ACC_CB_DATA,
   LURCH_API_HANDLER_ACC_CB_DATA,
+  LURCH_API_HANDLER_ACC_DID_CB_DATA,
   LURCH_API_HANDLER_ACC_JID_CB_DATA,
   LURCH_API_HANDLER_ACC_JID_CB_DATA,
   LURCH_API_HANDLER_ACC_CB_DATA
@@ -200,6 +265,19 @@ void lurch_api_init() {
           4,
           purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_ACCOUNT),
           purple_value_new(PURPLE_TYPE_STRING),
+          purple_value_new(PURPLE_TYPE_POINTER),
+          purple_value_new(PURPLE_TYPE_POINTER)
+        );
+        break;
+      case LURCH_API_HANDLER_ACC_DID_CB_DATA:
+        purple_signal_register(
+          plugins_handle_p,
+          signal_name,
+          lurch_api_marshal_VOID__POINTER_INT_POINTER_POINTER,
+          NULL,
+          4,
+          purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_ACCOUNT),
+          purple_value_new(PURPLE_TYPE_INT),
           purple_value_new(PURPLE_TYPE_POINTER),
           purple_value_new(PURPLE_TYPE_POINTER)
         );

@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <stdlib.h>
 #include <glib.h>
 #include <purple.h>
 
@@ -78,6 +79,17 @@ void lurch_id_list_print(int32_t err, GList * id_list, void * user_data_p) {
   g_free(temp_msg_1);
 }
 
+void lurch_id_remove_print(int32_t err, void * user_data_p) {
+  PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
+
+  if (err) {
+    lurch_cmd_print_err(conv_p, "Failed to remove the ID from your devicelist. Check the debug log for details.");
+    return;
+  }
+
+  lurch_cmd_print(conv_p, "Successfully removed the ID from your devicelist.");
+}
+
 void lurch_enable_print(int32_t err, void * user_data_p) {
   PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
 
@@ -117,15 +129,22 @@ void lurch_fp_show_print(int32_t err, const char * fp_printable, void * user_dat
   g_free(msg);
 }
 
-static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg) {
+static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg, const char * param) {
   PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
+  void * plugins_handle = purple_plugins_get_handle();
 
   if (!g_strcmp0(arg, "show")) {
-    purple_signal_emit(purple_plugins_get_handle(), "lurch-id-show", acc_p, lurch_id_show_print, conv_p);
+    purple_signal_emit(plugins_handle, "lurch-id-show", acc_p, lurch_id_show_print, conv_p);
   } else if (!g_strcmp0(arg, "list")) {
-    purple_signal_emit(purple_plugins_get_handle(), "lurch-id-list", acc_p, lurch_id_list_print, conv_p);
+    purple_signal_emit(plugins_handle, "lurch-id-list", acc_p, lurch_id_list_print, conv_p);
+  } else if (!g_strcmp0(arg, "remove")) {
+    if (!param) {
+      lurch_cmd_print_err(conv_p, "You have to specify the device ID to remove.");
+    } else {
+      purple_signal_emit(plugins_handle, "lurch-id-remove", acc_p, strtol(param, (void *) 0, 10), lurch_id_remove_print, conv_p);
+    }
   } else {
-    lurch_cmd_print(conv_p, "Valid arguments for 'id' are 'show' or 'list'.");
+    lurch_cmd_print(conv_p, "Valid arguments for 'id' are 'show', 'list', and 'remove <id>'.");
   }
 }
 
@@ -175,7 +194,7 @@ PurpleCmdRet lurch_cmd_func_v2(PurpleConversation * conv_p,
   } else if (!g_strcmp0(command, "disable")) {
     lurch_cmd_disable(conv_p);
   } else if (!g_strcmp0(command, "id")) {
-    lurch_cmd_id(conv_p, args[1]);
+    lurch_cmd_id(conv_p, args[1], args[2]);
   } else if (!g_strcmp0(command, "fp")) {
     lurch_cmd_fp(conv_p, args[1]);
   } else {

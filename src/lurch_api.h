@@ -1,5 +1,7 @@
 #pragma once
 
+#define LURCH_ERR_DEVICE_NOT_IN_LIST -1000100
+
 /**
  * Initializes the API by registering the signals and signal handlers.
  */
