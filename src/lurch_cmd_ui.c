@@ -6,6 +6,7 @@
 #include "jutil.h"
 
 #include "libomemo.h"
+#include "lurch_api.h"
 
 static void lurch_cmd_print(PurpleConversation * conv_p, const char * msg) {
   purple_conversation_write(conv_p, "lurch", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time((void *) 0));  
@@ -129,6 +130,36 @@ void lurch_fp_show_print(int32_t err, const char * fp_printable, void * user_dat
   g_free(msg);
 }
 
+void lurch_status_im_print(int32_t err, lurch_status_t status, void * user_data_p) {
+  PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
+  const char * msg = (void *) 0;
+
+  if (err) {
+    lurch_cmd_print_err(conv_p, "Failed to get the conversation status. Check the debug log for details.");
+    return;
+  }
+
+  switch (status) {
+    case LURCH_STATUS_DISABLED:
+      msg = g_strdup_printf("You disabled OMEMO for this conversation. return is %i", status);
+      break;
+    case LURCH_STATUS_NOT_SUPPORTED:
+      msg = "Your contact does not support OMEMO.";
+      break;
+    case LURCH_STATUS_NO_SESSION:
+      msg = "Your contact supports OMEMO, but you have not established a session yet. Just start messaging!";
+      break;
+    case LURCH_STATUS_OK:
+      // msg = "OMEMO is enabled for this conversation.";
+      msg = g_strdup_printf("You enabled OMEMO for this conversation. return is %i", status);
+      break;
+    default:
+      msg = "Received unknown status code.";
+  }
+
+  lurch_cmd_print(conv_p, msg);
+}
+
 static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg, const char * param) {
   PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
   void * plugins_handle = purple_plugins_get_handle();
@@ -180,6 +211,17 @@ static void lurch_cmd_fp(PurpleConversation * conv_p, const char * arg) {
   }
 }
 
+static void lurch_cmd_status(PurpleConversation * conv_p) {
+  PurpleConversationType conv_type = purple_conversation_get_type(conv_p);
+  char * conv_bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
+
+  if (conv_type == PURPLE_CONV_TYPE_IM) {
+    purple_signal_emit(purple_plugins_get_handle(), "lurch-status-im", purple_conversation_get_account(conv_p), conv_bare_jid, lurch_status_im_print ,conv_p);
+  }
+
+  g_free(conv_bare_jid);
+}
+
 PurpleCmdRet lurch_cmd_func_v2(PurpleConversation * conv_p,
                                    const gchar * cmd,
                                    gchar ** args,
@@ -197,6 +239,8 @@ PurpleCmdRet lurch_cmd_func_v2(PurpleConversation * conv_p,
     lurch_cmd_id(conv_p, args[1], args[2]);
   } else if (!g_strcmp0(command, "fp")) {
     lurch_cmd_fp(conv_p, args[1]);
+  } else if (!g_strcmp0(command, "status")) {
+    lurch_cmd_status(conv_p);
   } else {
     lurch_cmd_print(conv_p, "No such command. Type '/lurch help' for a list of available commands.");
   }

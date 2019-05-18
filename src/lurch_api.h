@@ -12,6 +12,13 @@ void lurch_api_init();
 */
 void lurch_api_unload();
 
+typedef enum {
+    LURCH_STATUS_DISABLED = 0,  // manually disabled
+    LURCH_STATUS_NOT_SUPPORTED, // no OMEMO support, i.e. there is no devicelist node
+    LURCH_STATUS_NO_SESSION,    // OMEMO is supported, but there is no libsignal session yet
+    LURCH_STATUS_OK             // OMEMO is supported and session exists
+} lurch_status_t;
+
 
 /**
  * USAGE

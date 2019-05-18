@@ -188,6 +188,69 @@ cleanup:
   axc_context_destroy_all(axc_ctx_p);
 }
 
+void lurch_api_status_im_handler(PurpleAccount * acc_p, const char * contact_bare_jid, void (*cb)(int32_t err, lurch_status_t status, void * user_data_p), void * user_data_p) {
+  int32_t ret_val = 0;
+  lurch_status_t status = LURCH_STATUS_DISABLED;
+
+  char * uname = (void *) 0;
+  char * db_fn_omemo = (void *) 0;
+  omemo_devicelist * dl_p = (void *) 0;
+  axc_context * axc_ctx_p = (void *) 0;
+
+  uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+
+  ret_val = omemo_storage_chatlist_exists(contact_bare_jid, db_fn_omemo);
+  if (ret_val < 0 || ret_val > 1) {
+    purple_debug_error(MODULE_NAME, "Failed to look up %s in file %s.", contact_bare_jid, db_fn_omemo);
+    goto cleanup;
+  } else if (ret_val == 0) {
+    // conversation is not on blacklist, continue
+  } else if (ret_val == 1) {
+    ret_val = 0;
+    status = LURCH_STATUS_DISABLED;
+    goto cleanup;
+  }
+
+  ret_val = omemo_storage_user_devicelist_retrieve(contact_bare_jid, db_fn_omemo, &dl_p);
+  if (ret_val) {
+    purple_debug_error(MODULE_NAME, "Failed to get the devicelist for %s from %s.", contact_bare_jid, db_fn_omemo);
+    goto cleanup;
+  }
+
+  if (omemo_devicelist_is_empty(dl_p)) {
+    ret_val = 0;
+    status = LURCH_STATUS_NOT_SUPPORTED;
+    goto cleanup;
+  }
+
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
+  if (ret_val) {
+    purple_debug_error(MODULE_NAME, "Failed to create axc ctx for %s.", uname);
+    goto cleanup;
+  }
+
+  ret_val = axc_session_exists_any(contact_bare_jid, axc_ctx_p);
+  if (ret_val < 0) {
+    purple_debug_error(MODULE_NAME, "Failed to look up session with %s.", contact_bare_jid);
+    goto cleanup;
+  } else if (ret_val == 0) {
+    ret_val = 0;
+    status = LURCH_STATUS_NO_SESSION;
+  } else {
+    ret_val = 0;
+    status = LURCH_STATUS_OK;
+  }
+
+cleanup:
+  cb(ret_val, status, user_data_p);
+
+  g_free(uname);
+  g_free(db_fn_omemo);
+  omemo_devicelist_destroy(dl_p);
+  axc_context_destroy_all(axc_ctx_p);
+}
+
 static void lurch_api_marshal_VOID__POINTER_INT_POINTER_POINTER(PurpleCallback cb, va_list args, void * data, void ** return_val) {
 	void * arg1 = va_arg(args, void *);
 	gint32 arg2 = va_arg(args, guint);
@@ -208,7 +271,7 @@ typedef enum {
  * When adding a new signal: increase this number and add the name, handler function, and handler function type
  * to the respective array.
  */
-#define NUM_OF_SIGNALS 6
+#define NUM_OF_SIGNALS 7
 
 const char * signal_names[NUM_OF_SIGNALS] = {
   "lurch-id-show",
@@ -216,7 +279,8 @@ const char * signal_names[NUM_OF_SIGNALS] = {
   "lurch-id-remove",
   "lurch-enable-im",
   "lurch-disable-im",
-  "lurch-fp-get"
+  "lurch-fp-get",
+  "lurch-status-im"
 };
 
 const void * signal_handlers[NUM_OF_SIGNALS] = {
@@ -225,7 +289,8 @@ const void * signal_handlers[NUM_OF_SIGNALS] = {
   lurch_api_id_remove_handler,
   lurch_api_enable_im_handler,
   lurch_api_disable_im_handler,
-  lurch_api_fp_get_handler
+  lurch_api_fp_get_handler,
+  lurch_api_status_im_handler
 };
 
 const lurch_api_handler_t signal_handler_types[NUM_OF_SIGNALS] = {
@@ -234,7 +299,8 @@ const lurch_api_handler_t signal_handler_types[NUM_OF_SIGNALS] = {
   LURCH_API_HANDLER_ACC_DID_CB_DATA,
   LURCH_API_HANDLER_ACC_JID_CB_DATA,
   LURCH_API_HANDLER_ACC_JID_CB_DATA,
-  LURCH_API_HANDLER_ACC_CB_DATA
+  LURCH_API_HANDLER_ACC_CB_DATA,
+  LURCH_API_HANDLER_ACC_JID_CB_DATA
 };
 
 void lurch_api_init() {
