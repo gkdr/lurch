@@ -21,38 +21,21 @@ static void lurch_cmd_help(PurpleConversation * conv_p) {
     "The following commands exist to interact with the lurch plugin:\n\n"
     " - '/lurch enable': Enables OMEMO encryption for this conversation. On by default for regular conversations, off for group chats.\n"
     " - '/lurch disable': Disables OMEMO encryption for this conversation.\n"
-    " - '/lurch id show': Displays this device's ID.\n"
     " - '/lurch id list': Displays this account's device list.\n"
     " - '/lurch id remove <id>': Removes the device ID <id> from this account's device list.\n"
     " - '/lurch fp show': Displays this device's key fingerprint.\n"
     " - '/lurch fp conv': Displays the fingerprints of all devices participating in this conversation.\n"
-    //TODO: add "status"
+    " - '/lurch status': Shows the OMEMO status of this conversation.\n"
     " - '/lurch help': Displays this message.\n"
     " - '/lurch uninstall': Uninstalls this device from OMEMO by removing its device ID from the devicelist.";
 
     lurch_cmd_print(conv_p, help_message);
 }
 
-void lurch_id_show_print(int32_t err, uint32_t id, void * user_data_p) {
-  PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
-
-  char * msg = (void *) 0;
-
-  if (err) {
-    lurch_cmd_print_err(conv_p, "An error occured when trying to retrieve this device's ID. Check the debug log for details.");
-    return;
-  }
-
-  msg = g_strdup_printf("This device's ID is %i", id); 
-  lurch_cmd_print(conv_p, msg);
-
-  g_free(msg);
-}
-
 void lurch_id_list_print(int32_t err, GList * id_list, void * user_data_p) {
   PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
 
-  char * temp_msg_1 = g_strdup("Your devicelist is:\n");
+  char * temp_msg_1 = g_strdup_printf("\nYour devicelist is:\n%i (this device)\n", omemo_devicelist_list_data(id_list));
   char * temp_msg_2 = (void *) 0;
   char * temp_msg_3 = (void *) 0;
 
@@ -63,8 +46,9 @@ void lurch_id_list_print(int32_t err, GList * id_list, void * user_data_p) {
     return;
   }
 
-  for (curr_p = id_list; curr_p; curr_p = curr_p->next) {
+  for (curr_p = id_list->next; curr_p; curr_p = curr_p->next) {
     temp_msg_2 = g_strdup_printf("%i\n", omemo_devicelist_list_data(curr_p));
+
     temp_msg_3 = g_strconcat(temp_msg_1, temp_msg_2, NULL);
 
     g_free(temp_msg_1);
@@ -141,17 +125,16 @@ void lurch_status_im_print(int32_t err, lurch_status_t status, void * user_data_
 
   switch (status) {
     case LURCH_STATUS_DISABLED:
-      msg = g_strdup_printf("You disabled OMEMO for this conversation. return is %i", status);
+      msg = "You disabled OMEMO for this conversation. Type '/lurch enable' to switch it back on.";
       break;
     case LURCH_STATUS_NOT_SUPPORTED:
-      msg = "Your contact does not support OMEMO.";
+      msg = "Your contact does not support OMEMO. No devicelist could be found.";
       break;
     case LURCH_STATUS_NO_SESSION:
       msg = "Your contact supports OMEMO, but you have not established a session yet. Just start messaging!";
       break;
     case LURCH_STATUS_OK:
-      // msg = "OMEMO is enabled for this conversation.";
-      msg = g_strdup_printf("You enabled OMEMO for this conversation. return is %i", status);
+      msg = "OMEMO is enabled for this conversation. You can turn it off by typing '/lurch disable'.";
       break;
     default:
       msg = "Received unknown status code.";
@@ -164,9 +147,7 @@ static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg, const ch
   PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
   void * plugins_handle = purple_plugins_get_handle();
 
-  if (!g_strcmp0(arg, "show")) {
-    purple_signal_emit(plugins_handle, "lurch-id-show", acc_p, lurch_id_show_print, conv_p);
-  } else if (!g_strcmp0(arg, "list")) {
+  if (!g_strcmp0(arg, "list")) {
     purple_signal_emit(plugins_handle, "lurch-id-list", acc_p, lurch_id_list_print, conv_p);
   } else if (!g_strcmp0(arg, "remove")) {
     if (!param) {
@@ -175,7 +156,7 @@ static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg, const ch
       purple_signal_emit(plugins_handle, "lurch-id-remove", acc_p, strtol(param, (void *) 0, 10), lurch_id_remove_print, conv_p);
     }
   } else {
-    lurch_cmd_print(conv_p, "Valid arguments for 'id' are 'show', 'list', and 'remove <id>'.");
+    lurch_cmd_print(conv_p, "Valid arguments for 'id' are list' and 'remove <id>'.");
   }
 }
 

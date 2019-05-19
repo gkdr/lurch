@@ -39,10 +39,6 @@
 
 #define LURCH_ACC_SETTING_INITIALIZED "lurch_initialised"
 
-#define LURCH_ERR           -1000000
-#define LURCH_ERR_NOMEM     -1000001
-#define LURCH_ERR_NO_BUNDLE -1000010
-
 #define LURCH_ERR_STRING_ENCRYPT "There was an error encrypting the message and it was not sent. " \
                                  "You can try again, or try to find the problem by looking at the debug log."
 #define LURCH_ERR_STRING_DECRYPT "There was an error decrypting an OMEMO message addressed to this device. " \

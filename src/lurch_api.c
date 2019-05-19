@@ -13,39 +13,15 @@
 
 #define MODULE_NAME "lurch-api"
 
-void lurch_api_id_show_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, uint32_t id, void * user_data_p), void * user_data_p) {
-  int32_t ret_val = 0;
-  char * uname = (void *) 0;
-  axc_context * axc_ctx_p = (void *) 0;
-  uint32_t id = 0;
-
-  uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
-  
-  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
-  if (ret_val) {
-    purple_debug_error(MODULE_NAME, "Failed to create axc ctx.\n");
-    goto cleanup;
-  }
-
-  ret_val = axc_get_device_id(axc_ctx_p, &id);
-  if (ret_val) {
-    purple_debug_error(MODULE_NAME, "Failed to access axc db %s. Does the path seem correct?", axc_context_get_db_fn(axc_ctx_p));
-    goto cleanup;
-  }
-
-cleanup:
-  cb(ret_val, id, user_data_p);
-
-  axc_context_destroy_all(axc_ctx_p);
-  g_free(uname);
-}
-
 void lurch_api_id_list_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, GList * id_list, void * user_data_p), void * user_data_p) {
   int32_t ret_val = 0;
   char * uname = (void *) 0;
   char * db_fn_omemo = (void *) 0;
   omemo_devicelist * dl_p = (void *) 0;
+  axc_context * axc_ctx_p = (void *) 0;
+  uint32_t own_id = 0;
   GList * id_list = (void *) 0;
+  uint32_t * id_p = (void *) 0;
 
   uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
   db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
@@ -53,18 +29,45 @@ void lurch_api_id_list_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, GL
   ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &dl_p);
   if (ret_val) {
     purple_debug_error(MODULE_NAME, "Failed to access OMEMO DB %s.", db_fn_omemo);
+    goto cleanup;
+  }
+
+  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
+  if (ret_val) {
+    purple_debug_error(MODULE_NAME, "Failed to create axc ctx.");
+    goto cleanup;
+  }
+
+  ret_val = axc_get_device_id(axc_ctx_p, &own_id);
+  if (ret_val) {
+    purple_debug_error(MODULE_NAME, "Failed to access axc db %s. Does the path seem correct?", axc_context_get_db_fn(axc_ctx_p));
+    goto cleanup;
+  }
+
+  ret_val = omemo_devicelist_remove(dl_p, own_id);
+  if (ret_val) {
+    purple_debug_error(MODULE_NAME, "Failed to remove the ID from the devicelist.");
+    goto cleanup;
   }
 
   id_list = omemo_devicelist_get_id_list(dl_p);
 
-  //TODO: somehow make clear which is the own ID, maybe sort the list so that the own ID is always the first?
-  //TODO: then probably merge this with "id show", no one needs two of those
+  id_p = malloc(sizeof(uint32_t));
+  if (!id_p) {
+    ret_val = LURCH_ERR_NOMEM;
+    goto cleanup;
+  }
+  *id_p = own_id;
 
+  id_list = g_list_prepend(id_list, id_p);
+
+cleanup:
   cb(ret_val, id_list, user_data_p);
 
   g_free(uname);
   g_free(db_fn_omemo);
   omemo_devicelist_destroy(dl_p);
+  axc_context_destroy_all(axc_ctx_p);
   g_list_free_full(id_list, free);
 }
 
@@ -271,10 +274,9 @@ typedef enum {
  * When adding a new signal: increase this number and add the name, handler function, and handler function type
  * to the respective array.
  */
-#define NUM_OF_SIGNALS 7
+#define NUM_OF_SIGNALS 6
 
 const char * signal_names[NUM_OF_SIGNALS] = {
-  "lurch-id-show",
   "lurch-id-list",
   "lurch-id-remove",
   "lurch-enable-im",
@@ -284,7 +286,6 @@ const char * signal_names[NUM_OF_SIGNALS] = {
 };
 
 const void * signal_handlers[NUM_OF_SIGNALS] = {
-  lurch_api_id_show_handler,
   lurch_api_id_list_handler,
   lurch_api_id_remove_handler,
   lurch_api_enable_im_handler,
@@ -294,7 +295,6 @@ const void * signal_handlers[NUM_OF_SIGNALS] = {
 };
 
 const lurch_api_handler_t signal_handler_types[NUM_OF_SIGNALS] = {
-  LURCH_API_HANDLER_ACC_CB_DATA,
   LURCH_API_HANDLER_ACC_CB_DATA,
   LURCH_API_HANDLER_ACC_DID_CB_DATA,
   LURCH_API_HANDLER_ACC_JID_CB_DATA,
