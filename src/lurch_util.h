@@ -45,6 +45,6 @@ char * lurch_util_uname_get_db_fn(const char * uname, const char * which);
  * Also useful for avoiding the smileys produced by ':d'...
  *
  * @param fp The fingerprint string as returned by purple_base16_encode_chunked
- * @return A newly allocated string which contains the fingerprint in printable format, or NULL.
+ * @return A newly allocated string which contains the fingerprint in printable format, or NULL. g_free() when done.
  */
 char * lurch_util_fp_get_printable(const char * fp);

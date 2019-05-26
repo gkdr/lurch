@@ -24,7 +24,8 @@ static void lurch_cmd_help(PurpleConversation * conv_p) {
     " - '/lurch id list': Displays this account's device list.\n"
     " - '/lurch id remove <id>': Removes the device ID <id> from this account's device list.\n"
     " - '/lurch fp show': Displays this device's key fingerprint.\n"
-    " - '/lurch fp conv': Displays the fingerprints of all devices participating in this conversation.\n"
+    " - '/lurch fp list': Displays the fingerprints of all your devices.\n"
+    " - '/lurch fp other': Displays the fingerprints of all of your conversation partner's devices.\n"
     " - '/lurch status': Shows the OMEMO status of this conversation.\n"
     " - '/lurch help': Displays this message.\n"
     " - '/lurch uninstall': Uninstalls this device from OMEMO by removing its device ID from the devicelist.";
@@ -114,6 +115,37 @@ void lurch_fp_show_print(int32_t err, const char * fp_printable, void * user_dat
   g_free(msg);
 }
 
+void lurch_fp_print(int32_t err, GHashTable * id_fp_table, void * user_data_p) {
+  PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
+
+  GString * msg = (void *) 0;
+  GList * key_list = (void *) 0;
+  const GList * curr_p = (void *) 0;
+  const char * fp = (void *) 0;
+
+  if (err) {
+    lurch_cmd_print_err(conv_p, "Failed to get the fingerprints. Check the debug log for details.");
+    return;
+  }
+
+  if (!id_fp_table) {
+    lurch_cmd_print(conv_p, "The devicelist is empty, so there is nothing to show!");
+    return;
+  }
+
+  msg = g_string_new("\n");
+  key_list = g_hash_table_get_keys(id_fp_table);
+  for (curr_p = key_list; curr_p; curr_p = curr_p->next) {
+    fp = (char *) g_hash_table_lookup(id_fp_table, curr_p->data);
+    g_string_append_printf(msg, "%i's fingerprint:\n%s\n", *((uint32_t *) curr_p->data), fp ? fp : "(no session)");
+  }
+
+  lurch_cmd_print(conv_p, msg->str);
+
+  g_string_free(msg, TRUE);
+  g_list_free(key_list);
+}
+
 void lurch_status_im_print(int32_t err, lurch_status_t status, void * user_data_p) {
   PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
   const char * msg = (void *) 0;
@@ -184,11 +216,19 @@ static void lurch_cmd_disable(PurpleConversation * conv_p) {
 
 static void lurch_cmd_fp(PurpleConversation * conv_p, const char * arg) {
   PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
+  void * plugins_handle = purple_plugins_get_handle();
+  char * conv_bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
 
   if (!g_strcmp0(arg, "show")) {
-    purple_signal_emit(purple_plugins_get_handle(), "lurch-fp-get", acc_p, lurch_fp_show_print, conv_p);
+    purple_signal_emit(plugins_handle, "lurch-fp-get", acc_p, lurch_fp_show_print, conv_p);
+  } else if (!g_strcmp0(arg, "list")) {
+    lurch_cmd_print(conv_p, "Your devices' fingerprints are:");
+    purple_signal_emit(plugins_handle, "lurch-fp-list", acc_p, lurch_fp_print, conv_p);
+  } else if (!g_strcmp0(arg, "other")) {
+    lurch_cmd_print(conv_p, "Your contact's devices' fingerprints are:");
+    purple_signal_emit(plugins_handle, "lurch-fp-other", acc_p, conv_bare_jid, lurch_fp_print, conv_p);
   } else {
-    lurch_cmd_print(conv_p, "Valid arguments for 'fp' are 'show'.");
+    lurch_cmd_print(conv_p, "Valid arguments for 'fp' are 'show', 'list', and 'other'.");
   }
 }
 
