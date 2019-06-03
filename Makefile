@@ -22,8 +22,9 @@ GLIB_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags glib-2.0)
 GLIB_LDFLAGS ?= $(shell $(PKG_CONFIG) --libs glib-2.0)
 
 LIBPURPLE_CFLAGS=$(shell $(PKG_CONFIG) --cflags purple)
+PURPLE_DIR=$(shell $(PKG_CONFIG) --variable=plugindir purple)
 LIBPURPLE_LDFLAGS=$(shell $(PKG_CONFIG) --cflags purple) \
-		    -L$(shell $(PKG_CONFIG) --variable=plugindir purple)
+		    -L$(PURPLE_DIR)
 		    
 XML2_CFLAGS ?= $(shell $(XML2_CONFIG) --cflags)
 XML2_LDFLAGS ?= $(shell $(XML2_CONFIG) --libs)
@@ -57,6 +58,8 @@ PLUGIN_CPPFLAGS=-DPURPLE_PLUGINS
 # -D_BSD_SOURCE can be removed once nobody uses glibc <= 2.18 any more
 CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE -D_DEFAULT_SOURCE
 LDFLAGS += -ldl -lm $(PKGCFG_L) $(LJABBER) -Wl,-rpath,$(PURPLE_PLUGIN_DIR)
+LDFLAGS_T=$(LDFLAGS) -lpurple -lcmocka \
+	-Wl,--wrap=purple_user_dir
 
 
 ### directories
@@ -68,6 +71,7 @@ LDIR=./lib
 BDIR=./build
 SDIR=./src
 HDIR=./headers
+TDIR=./test
 
 LOMEMO_DIR=$(LDIR)/libomemo
 LOMEMO_SRC=$(LOMEMO_DIR)/src
@@ -109,6 +113,12 @@ $(LOMEMO_PATH):
 $(BDIR)/%.o: $(SDIR)/%.c | $(BDIR)
 	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) -c $(SDIR)/$*.c -o $@
 
+$(BDIR)/%_w_coverage.o: $(SDIR)/%.c | $(BDIR)
+	$(CC) -O0 --coverage $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) -c $(SDIR)/$*.c -o $@
+
+$(BDIR)/test_%.o: $(TDIR)/test_%.c | $(BDIR)
+	$(CC) $(CFLAGS) -O0 -c $(TDIR)/test_$*.c -o $@
+
 $(BDIR)/lurch.so: $(LURCH_FILES) $(VENDOR_LIBS)
 	$(CC) -fPIC -shared $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) \
 		$^ \
@@ -139,6 +149,14 @@ tarball: | clean-all $(BDIR)
 	mv $(TARBALL_FILE_NAME) $(TARBALL_DIR_NAME)/
 	mv $(TARBALL_DIR_NAME) $(BDIR)/
 
+test: $(VENDOR_LIBS) $(BDIR)/lurch_util_w_coverage.o $(BDIR)/test_lurch_util.o
+	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $(BDIR)/test_lurch_util.o $(BDIR)/lurch_util_w_coverage.o $(VENDOR_LIBS) -o $(BDIR)/$@ $(LDFLAGS_T)
+	-$(BDIR)/$@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n' # filter annoying and irrelevant glib output
+
+coverage: test
+	gcovr -r . --html --html-details -o build/coverage.html
+	gcovr -r . -s
+
 clean:
 	$(RM_RF) "$(BDIR)"
 
@@ -146,5 +164,5 @@ clean-all: clean
 	$(MAKE) -C "$(LOMEMO_DIR)" clean
 	$(MAKE) -C "$(AXC_DIR)" clean-all
 
-.PHONY: clean clean-all install install-home tarball
+.PHONY: clean clean-all install install-home tarball test coverage
 
