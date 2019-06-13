@@ -363,9 +363,12 @@ cleanup:
   g_free(db_fn_omemo);
   omemo_devicelist_destroy(dl_p);
   axc_context_destroy_all(axc_ctx_p);
-  g_hash_table_destroy(id_fp_table);
   g_list_free_full(id_list, free);
   axc_buf_free(key_buf_p);
+
+  if (id_fp_table) {
+    g_hash_table_destroy(id_fp_table);
+  }
 }
 
 void lurch_api_status_im_handler(PurpleAccount * acc_p, const char * contact_bare_jid, void (*cb)(int32_t err, lurch_status_t status, void * user_data_p), void * user_data_p) {
