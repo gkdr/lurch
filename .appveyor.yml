@@ -1,0 +1,21 @@
+version: 0.6.9-dev-{build}
+
+image: Ubuntu1804
+
+install:
+- sh: sudo apt-get update
+- sh: sudo apt-get install -y git cmake libpurple-dev libmxml-dev libxml2-dev libsqlite3-dev libgcrypt20-dev build-essential libglib2.0-dev libcmocka-dev --no-install-recommends
+
+build_script:
+- sh: make
+
+test_script:
+- sh: CMOCKA_MESSAGE_OUTPUT=XML CMOCKA_XML_FILE=build/cmocka_results.xml make test
+
+after_test:
+- sh: curl -v -F "file=@$APPVEYOR_BUILD_FOLDER/build/cmocka_results.xml" "https://ci.appveyor.com/api/testresults/junit/$APPVEYOR_JOB_ID"
+- sh: bash <(curl -s https://codecov.io/bash) -g test/ -B $APPVEYOR_REPO_BRANCH -b $APPVEYOR_BUILD_VERSION
+
+artifacts:
+  - path: build/lurch.sos
+    name: lurch-$APPVEYOR_BUILD_VERSION-$APPVEYOR_REPO_COMMIT.so
