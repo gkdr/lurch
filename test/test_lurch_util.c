@@ -46,9 +46,37 @@ static void test_lurch_util_uname_get_db_fn(void ** state) {
     "/home/testuser/.purple/test-uname@example.com_TESTTYPE_db.sqlite");
 }
 
+static void test_lurch_util_fp_get_printable(void ** state) {
+    (void) state;
+
+    const char * fp_as_returned_by_pidgin =
+        "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cd:ef";
+
+    char * printable_fp = lurch_util_fp_get_printable(fp_as_returned_by_pidgin);
+    assert_non_null(printable_fp);
+    assert_string_equal(printable_fp, "34567812 34567812 34567812 34567812 34567812 34567812 34567812 abcdef");
+
+}
+
+static void test_lurch_util_fp_get_printable_invalid(void ** state) {
+    (void) state;
+
+    assert_null(lurch_util_fp_get_printable(NULL));
+
+    const char * too_short =
+        "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cdef";
+    const char * too_long =
+        "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cd:ef:";
+
+    assert_null(lurch_util_fp_get_printable(too_short));
+    assert_null(lurch_util_fp_get_printable(too_long));
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_lurch_util_uname_get_db_fn)
+        cmocka_unit_test(test_lurch_util_uname_get_db_fn),
+        cmocka_unit_test(test_lurch_util_fp_get_printable),
+        cmocka_unit_test(test_lurch_util_fp_get_printable_invalid)
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

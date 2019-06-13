@@ -128,7 +128,7 @@ char * lurch_util_fp_get_printable(const char * fp) {
   char * temp1 = (void *) 0;
   char * temp2 = (void *) 0;
 
-  if (!fp) {
+  if (!fp || strlen(fp) != 95) {
     return (void *) 0;
   }
 
