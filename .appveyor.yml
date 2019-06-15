@@ -5,6 +5,7 @@ image: Ubuntu1804
 install:
 - sh: sudo apt-get update
 - sh: sudo apt-get install -y git cmake libpurple-dev libmxml-dev libxml2-dev libsqlite3-dev libgcrypt20-dev build-essential libglib2.0-dev libcmocka-dev --no-install-recommends
+- sh: git submodule update --init --recursive
 
 build_script:
 - sh: make
