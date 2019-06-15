@@ -18,5 +18,5 @@ after_test:
 - sh: bash <(curl -s https://codecov.io/bash) -g test/ -B $APPVEYOR_REPO_BRANCH -b $APPVEYOR_BUILD_VERSION
 
 artifacts:
-  - path: build/lurch.sos
+  - path: build/lurch.so
     name: lurch-$APPVEYOR_BUILD_VERSION-$APPVEYOR_REPO_COMMIT.so
