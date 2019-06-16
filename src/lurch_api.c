@@ -203,7 +203,7 @@ void lurch_api_fp_get_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, con
 
   ret_val = axc_key_load_public_own(axc_ctx_p, &key_buf_p);
   if (ret_val) {
-    purple_debug_error("Failed to load public key from axc db %s.", axc_context_get_db_fn(axc_ctx_p));
+    purple_debug_error(MODULE_NAME, "Failed to load public key from axc db %s.", axc_context_get_db_fn(axc_ctx_p));
     goto cleanup;
   }
 
@@ -302,7 +302,7 @@ void lurch_api_fp_list_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, GH
 
   ret_val = axc_key_load_public_own(axc_ctx_p, &key_buf_p);
   if (ret_val) {
-    purple_debug_error("Failed to load public key from axc db %s.", axc_context_get_db_fn(axc_ctx_p));
+    purple_debug_error(MODULE_NAME, "Failed to load public key from axc db %s.", axc_context_get_db_fn(axc_ctx_p));
     goto cleanup;
   }
 
