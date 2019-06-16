@@ -86,7 +86,12 @@ AXC_PATH=$(AXC_BUILD)/libaxc-nt.a
 AX_DIR=$(AXC_DIR)/lib/libsignal-protocol-c
 AX_PATH=$(AX_DIR)/build/src/libsignal-protocol-c.a
 
-LURCH_FILES=$(BDIR)/lurch.o $(BDIR)/lurch_api.o $(BDIR)/lurch_util.o $(BDIR)/lurch_cmd_ui.o
+SOURCES := $(wildcard $(SDIR)/*.c)
+OBJECTS := $(patsubst $(SDIR)/%.c, $(BDIR)/%.o, $(SOURCES))
+OBJECTS_W_COVERAGE := $(patsubst $(SDIR)/%.c, $(BDIR)/%_w_coverage.o, $(SOURCES))
+TEST_SOURCES := $(wildcard $(TDIR)/test_*.c)
+TEST_OBJECTS := $(patsubst $(TDIR)/test_%.c, $(BDIR)/test_%.o, $(TEST_SOURCES))
+# LURCH_FILES=$(BDIR)/lurch.o $(BDIR)/lurch_api.o $(BDIR)/lurch_util.o $(BDIR)/lurch_cmd_ui.o
 VENDOR_LIBS=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
 
 
@@ -119,7 +124,7 @@ $(BDIR)/%_w_coverage.o: $(SDIR)/%.c | $(BDIR)
 $(BDIR)/test_%.o: $(TDIR)/test_%.c | $(BDIR)
 	$(CC) $(CFLAGS) -O0 -c $(TDIR)/test_$*.c -o $@
 
-$(BDIR)/lurch.so: $(LURCH_FILES) $(VENDOR_LIBS)
+$(BDIR)/lurch.so: $(OBJECTS) $(VENDOR_LIBS)
 	$(CC) -fPIC -shared $(CFLAGS) $(CPPFLAGS) $(PLUGIN_CPPFLAGS) \
 		$^ \
 		-o $@ $(LDFLAGS)
@@ -149,8 +154,8 @@ tarball: | clean-all $(BDIR)
 	mv $(TARBALL_FILE_NAME) $(TARBALL_DIR_NAME)/
 	mv $(TARBALL_DIR_NAME) $(BDIR)/
 
-test: $(VENDOR_LIBS) $(BDIR)/lurch_util_w_coverage.o $(BDIR)/test_lurch_util.o
-	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $(BDIR)/test_lurch_util.o $(BDIR)/lurch_util_w_coverage.o $(VENDOR_LIBS) -o $(BDIR)/$@ $(LDFLAGS_T)
+test: $(TEST_OBJECTS) $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $^ $(PURPLE_DIR)/libjabber.so.0 -o $(BDIR)/$@ $(LDFLAGS_T)
 	-$(BDIR)/$@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n' # filter annoying and irrelevant glib output
 
 coverage: test
