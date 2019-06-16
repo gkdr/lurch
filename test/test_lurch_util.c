@@ -2,17 +2,43 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
+#include <glib.h>
 
+#include "axc.h"
+
+#include "../src/lurch.h"
 #include "../src/lurch_util.h"
 
 void __wrap_purple_debug_error(const char * category, const char * format, ...) {
     function_called();
 }
 
+int __wrap_axc_context_create(axc_context ** axc_ctx_pp) {
+    int ret_val;
+    ret_val = mock_type(int);
+    return ret_val;
+}
+
 const char * __wrap_purple_user_dir(void) {
     char * user_dir;
     user_dir = mock_ptr_type(char *);
     return user_dir;
+}
+
+gboolean __wrap_purple_prefs_get_bool(const char * pref_name) {
+    check_expected(pref_name);
+
+    gboolean pref_val;
+    pref_val = mock_type(gboolean);
+    return pref_val;
+}
+
+int __wrap_purple_prefs_get_int(const char * pref_name) {
+    check_expected(pref_name);
+
+    int pref_val;
+    pref_val = mock_type(int);
+    return pref_val;
 }
 
 /**
@@ -36,6 +62,46 @@ static void test_lurch_util_axc_log_func_error(void ** state) {
     axc_context_destroy_all(axc_ctx_p);
 }
 */
+
+static void test_lurch_util_axc_get_init_ctx_w_logging(void ** state) {
+    (void) state;
+
+    will_return(__wrap_purple_user_dir, "/home/testuser/.purple");
+
+    expect_string_count(__wrap_purple_prefs_get_bool, pref_name, LURCH_PREF_AXC_LOGGING, 2);
+    will_return_count(__wrap_purple_prefs_get_bool, TRUE, 2);
+
+    expect_string(__wrap_purple_prefs_get_int, pref_name, LURCH_PREF_AXC_LOGGING_LEVEL);
+    will_return(__wrap_purple_prefs_get_int, AXC_LOG_NOTICE);
+
+    char * test_jid = "test-user@example.com";
+
+    axc_context * test_axc_ctx_p = (void *) 0;
+    lurch_util_axc_get_init_ctx(test_jid, &test_axc_ctx_p);
+
+    assert_string_equal(axc_context_get_db_fn(test_axc_ctx_p), "/home/testuser/.purple/test-user@example.com_axc_db.sqlite");
+    assert_int_equal(axc_context_get_log_level(test_axc_ctx_p), AXC_LOG_NOTICE);
+}
+
+static void test_lurch_util_uname_strip(void ** state) {
+    (void) state;
+
+    assert_string_equal(lurch_util_uname_strip("node@domain/resource"), "node@domain");
+}
+
+static void test_lurch_util_uname_strip_no_resource(void ** state) {
+    (void) state;
+
+    assert_string_equal(lurch_util_uname_strip("node@domain/"), "node@domain");
+    assert_string_equal(lurch_util_uname_strip("node@domain"), "node@domain");
+}
+
+static void test_lurch_util_uname_strip_empty(void ** state) {
+    (void) state;
+
+    assert_null(lurch_util_uname_strip(""));
+    assert_null(lurch_util_uname_strip(NULL));
+}
 
 static void test_lurch_util_uname_get_db_fn(void ** state) {
     (void) state;
@@ -74,6 +140,10 @@ static void test_lurch_util_fp_get_printable_invalid(void ** state) {
 
 int main(void) {
     const struct CMUnitTest tests[] = {
+        cmocka_unit_test(test_lurch_util_axc_get_init_ctx_w_logging),
+        cmocka_unit_test(test_lurch_util_uname_strip),
+        cmocka_unit_test(test_lurch_util_uname_strip_no_resource),
+        cmocka_unit_test(test_lurch_util_uname_strip_empty),
         cmocka_unit_test(test_lurch_util_uname_get_db_fn),
         cmocka_unit_test(test_lurch_util_fp_get_printable),
         cmocka_unit_test(test_lurch_util_fp_get_printable_invalid)

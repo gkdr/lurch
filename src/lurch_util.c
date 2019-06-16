@@ -111,6 +111,10 @@ char * lurch_util_uname_strip(const char * uname) {
   char ** split;
   char * stripped;
 
+  if (!uname || strlen(uname) == 0) {
+    return (void *) 0;
+  }
+
   split = g_strsplit(uname, "/", 2);
   stripped = g_strdup(split[0]);
 

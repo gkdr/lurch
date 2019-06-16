@@ -59,8 +59,9 @@ PLUGIN_CPPFLAGS=-DPURPLE_PLUGINS
 CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE -D_DEFAULT_SOURCE
 LDFLAGS += -ldl -lm $(PKGCFG_L) $(LJABBER) -Wl,-rpath,$(PURPLE_PLUGIN_DIR)
 LDFLAGS_T=$(LDFLAGS) -lpurple -lcmocka \
-	-Wl,--wrap=purple_user_dir
-
+	-Wl,--wrap=purple_user_dir \
+	-Wl,--wrap=purple_prefs_get_bool \
+	-Wl,--wrap=purple_prefs_get_int
 
 ### directories
 #
@@ -91,7 +92,6 @@ OBJECTS := $(patsubst $(SDIR)/%.c, $(BDIR)/%.o, $(SOURCES))
 OBJECTS_W_COVERAGE := $(patsubst $(SDIR)/%.c, $(BDIR)/%_w_coverage.o, $(SOURCES))
 TEST_SOURCES := $(wildcard $(TDIR)/test_*.c)
 TEST_OBJECTS := $(patsubst $(TDIR)/test_%.c, $(BDIR)/test_%.o, $(TEST_SOURCES))
-# LURCH_FILES=$(BDIR)/lurch.o $(BDIR)/lurch_api.o $(BDIR)/lurch_util.o $(BDIR)/lurch_cmd_ui.o
 VENDOR_LIBS=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
 
 
