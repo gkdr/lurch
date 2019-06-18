@@ -13,6 +13,13 @@ void __wrap_purple_debug_error(const char * category, const char * format, ...) 
     function_called();
 }
 
+void __wrap_purple_debug_info(const char * category, const char * format, ...) {
+    function_called();
+}
+
+void __wrap_purple_debug_misc(const char * category, const char * format, ...) {
+}
+
 int __wrap_axc_context_create(axc_context ** axc_ctx_pp) {
     int ret_val;
     ret_val = mock_type(int);
@@ -44,7 +51,6 @@ int __wrap_purple_prefs_get_int(const char * pref_name) {
 /**
  * Log only errors when log level is set to AXC_LOG_ERROR, using purple_debug_error().
  */
-/*
 static void test_lurch_util_axc_log_func_error(void ** state) {
     (void) state;
 
@@ -52,16 +58,40 @@ static void test_lurch_util_axc_log_func_error(void ** state) {
 
     (void) axc_context_create(&axc_ctx_p);
     axc_context_set_log_level(axc_ctx_p, AXC_LOG_ERROR);
-    expect_function_call(_-__wrap_purple_debug_error);
+    expect_function_call(__wrap_purple_debug_error);
 
-    lurch_util_axc_log_func
-
-    assert_false(1);
-
+    lurch_util_axc_log_func(AXC_LOG_ERROR, "test", 4, axc_ctx_p);
+    lurch_util_axc_log_func(AXC_LOG_WARNING, "test", 4, axc_ctx_p);
+    lurch_util_axc_log_func(AXC_LOG_NOTICE, "test", 4, axc_ctx_p);
+    lurch_util_axc_log_func(AXC_LOG_INFO, "test", 4, axc_ctx_p);
+    lurch_util_axc_log_func(AXC_LOG_DEBUG, "test", 4, axc_ctx_p);
+    lurch_util_axc_log_func(-1, "test", 4, axc_ctx_p);
 
     axc_context_destroy_all(axc_ctx_p);
 }
-*/
+
+/**
+ * Log level info and above, but not below.
+ */
+static void test_lurch_util_axc_log_func_info(void ** state) {
+    (void) state;
+
+    axc_context * axc_ctx_p = (void *) 0;
+
+    (void) axc_context_create(&axc_ctx_p);
+    axc_context_set_log_level(axc_ctx_p, AXC_LOG_INFO);
+    expect_function_call(__wrap_purple_debug_error);
+    expect_function_calls(__wrap_purple_debug_info, 2);
+
+    lurch_util_axc_log_func(AXC_LOG_ERROR, "test", 4, axc_ctx_p);
+    lurch_util_axc_log_func(AXC_LOG_WARNING, "test", 4, axc_ctx_p);
+    lurch_util_axc_log_func(AXC_LOG_NOTICE, "test", 4, axc_ctx_p);
+    lurch_util_axc_log_func(AXC_LOG_INFO, "test", 4, axc_ctx_p);
+    lurch_util_axc_log_func(AXC_LOG_DEBUG, "test", 4, axc_ctx_p);
+
+    axc_context_destroy_all(axc_ctx_p);
+}
+
 
 static void test_lurch_util_axc_get_init_ctx_w_logging(void ** state) {
     (void) state;
@@ -81,6 +111,23 @@ static void test_lurch_util_axc_get_init_ctx_w_logging(void ** state) {
 
     assert_string_equal(axc_context_get_db_fn(test_axc_ctx_p), "/home/testuser/.purple/test-user@example.com_axc_db.sqlite");
     assert_int_equal(axc_context_get_log_level(test_axc_ctx_p), AXC_LOG_NOTICE);
+}
+
+static void test_lurch_util_axc_get_init_ctx_wo_logging(void ** state) {
+    (void) state;
+
+    will_return(__wrap_purple_user_dir, "/home/testuser/.purple");
+
+    expect_string_count(__wrap_purple_prefs_get_bool, pref_name, LURCH_PREF_AXC_LOGGING, 2);
+    will_return_count(__wrap_purple_prefs_get_bool, FALSE, 2);
+
+    char * test_jid = "test-user@example.com";
+
+    axc_context * test_axc_ctx_p = (void *) 0;
+    lurch_util_axc_get_init_ctx(test_jid, &test_axc_ctx_p);
+
+    assert_string_equal(axc_context_get_db_fn(test_axc_ctx_p), "/home/testuser/.purple/test-user@example.com_axc_db.sqlite");
+    assert_int_equal(axc_context_get_log_level(test_axc_ctx_p), -1);
 }
 
 static void test_lurch_util_uname_strip(void ** state) {
@@ -140,7 +187,10 @@ static void test_lurch_util_fp_get_printable_invalid(void ** state) {
 
 int main(void) {
     const struct CMUnitTest tests[] = {
+        cmocka_unit_test(test_lurch_util_axc_log_func_error),
+        cmocka_unit_test(test_lurch_util_axc_log_func_info),
         cmocka_unit_test(test_lurch_util_axc_get_init_ctx_w_logging),
+        cmocka_unit_test(test_lurch_util_axc_get_init_ctx_wo_logging),
         cmocka_unit_test(test_lurch_util_uname_strip),
         cmocka_unit_test(test_lurch_util_uname_strip_no_resource),
         cmocka_unit_test(test_lurch_util_uname_strip_empty),

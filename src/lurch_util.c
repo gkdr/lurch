@@ -13,14 +13,14 @@
  * @param len	the length of the message
  * @param ctx_p	the axc context
  */
-static void lurch_util_axc_log_func(int level, const char * msg, size_t len, void * user_data) {
+void lurch_util_axc_log_func(int level, const char * msg, size_t len, void * user_data) {
   (void) len;
   axc_context * ctx_p = (axc_context *) user_data;
   int log_level = axc_context_get_log_level(ctx_p);
 
   switch(level) {
     case AXC_LOG_ERROR:
-      if (log_level >= AXC_LOG_WARNING) {
+      if (log_level >= AXC_LOG_ERROR) {
         purple_debug_error("lurch", "[AXC ERROR] %s\n", msg);
       }
       break;

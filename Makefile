@@ -61,7 +61,10 @@ LDFLAGS += -ldl -lm $(PKGCFG_L) $(LJABBER) -Wl,-rpath,$(PURPLE_PLUGIN_DIR)
 LDFLAGS_T=$(LDFLAGS) -lpurple -lcmocka \
 	-Wl,--wrap=purple_user_dir \
 	-Wl,--wrap=purple_prefs_get_bool \
-	-Wl,--wrap=purple_prefs_get_int
+	-Wl,--wrap=purple_prefs_get_int \
+	-Wl,--wrap=purple_debug_error \
+	-Wl,--wrap=purple_debug_info \
+	-Wl,--wrap=purple_debug_misc \
 
 ### directories
 #
