@@ -129,23 +129,25 @@ char * lurch_util_uname_get_db_fn(const char * uname, const char * which) {
 
 char * lurch_util_fp_get_printable(const char * fp) {
   char ** split = (void *) 0;
-  char * temp1 = (void *) 0;
-  char * temp2 = (void *) 0;
+  const size_t split_len = 32;
+  char * printable = (void *) 0;
+  const size_t printable_len = 72;
 
-  if (!fp || strlen(fp) != 95) {
+  if (!fp || strlen(fp) != 98) {
     return (void *) 0;
   }
 
   split = g_strsplit(fp, ":", 0);
-  temp2 = g_strdup("");
+  printable = g_malloc0(printable_len);
 
-  for (int i = 1; i <= 32; i += 4) {
-    temp1 = g_strconcat(temp2, split[i], split[i+1], split[i+2], split[i+3], " ", NULL);
-    g_free(temp2);
-    temp2 = g_strdup(temp1);
-    g_free(temp1);
+  for (int i = 1; i <= split_len; i++) {
+    g_strlcat(printable, split[i], printable_len);
+
+    if (i % 4 == 0 && i != split_len) {
+      g_strlcat(printable, " ", printable_len);
+    }
   }
 
   g_strfreev(split);
-  return temp2;
+  return printable;
 }

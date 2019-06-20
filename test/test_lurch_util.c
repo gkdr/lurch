@@ -163,11 +163,11 @@ static void test_lurch_util_fp_get_printable(void ** state) {
     (void) state;
 
     const char * fp_as_returned_by_pidgin =
-        "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cd:ef";
+        "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cd:ef:gh";
 
     char * printable_fp = lurch_util_fp_get_printable(fp_as_returned_by_pidgin);
     assert_non_null(printable_fp);
-    assert_string_equal(printable_fp, "34567812 34567812 34567812 34567812 34567812 34567812 34567812 abcdef");
+    assert_string_equal(printable_fp, "34567812 34567812 34567812 34567812 34567812 34567812 34567812 abcdefgh");
 
 }
 
@@ -177,9 +177,9 @@ static void test_lurch_util_fp_get_printable_invalid(void ** state) {
     assert_null(lurch_util_fp_get_printable(NULL));
 
     const char * too_short =
-        "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cdef";
+        "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cd:efgh";
     const char * too_long =
-        "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cd:ef:";
+        "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cd:ef:gh:";
 
     assert_null(lurch_util_fp_get_printable(too_short));
     assert_null(lurch_util_fp_get_printable(too_long));
