@@ -58,13 +58,7 @@ PLUGIN_CPPFLAGS=-DPURPLE_PLUGINS
 # -D_BSD_SOURCE can be removed once nobody uses glibc <= 2.18 any more
 CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE -D_DEFAULT_SOURCE
 LDFLAGS += -ldl -lm $(PKGCFG_L) $(LJABBER) -Wl,-rpath,$(PURPLE_PLUGIN_DIR)
-LDFLAGS_T=$(LDFLAGS) -lpurple -lcmocka \
-	-Wl,--wrap=purple_user_dir \
-	-Wl,--wrap=purple_prefs_get_bool \
-	-Wl,--wrap=purple_prefs_get_int \
-	-Wl,--wrap=purple_debug_error \
-	-Wl,--wrap=purple_debug_info \
-	-Wl,--wrap=purple_debug_misc \
+LDFLAGS_T=$(LDFLAGS) -lpurple -lcmocka 
 
 ### directories
 #
@@ -95,6 +89,7 @@ OBJECTS := $(patsubst $(SDIR)/%.c, $(BDIR)/%.o, $(SOURCES))
 OBJECTS_W_COVERAGE := $(patsubst $(SDIR)/%.c, $(BDIR)/%_w_coverage.o, $(SOURCES))
 TEST_SOURCES := $(wildcard $(TDIR)/test_*.c)
 TEST_OBJECTS := $(patsubst $(TDIR)/test_%.c, $(BDIR)/test_%.o, $(TEST_SOURCES))
+TEST_TARGETS := $(patsubst $(TDIR)/test_%.c, $(BDIR)/test_%, $(TEST_SOURCES))
 VENDOR_LIBS=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
 
 
@@ -157,9 +152,21 @@ tarball: | clean-all $(BDIR)
 	mv $(TARBALL_FILE_NAME) $(TARBALL_DIR_NAME)/
 	mv $(TARBALL_DIR_NAME) $(BDIR)/
 
-test: $(TEST_OBJECTS) $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $^ $(PURPLE_DIR)/libjabber.so.0 -o $(BDIR)/$@ $(LDFLAGS_T)
-	-$(BDIR)/$@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n' # filter annoying and irrelevant glib output
+$(BDIR)/test_lurch_util: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_util.o
+	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $^ $(PURPLE_DIR)/libjabber.so.0 -o $@ $(LDFLAGS_T) \
+	-Wl,--wrap=purple_user_dir \
+	-Wl,--wrap=purple_prefs_get_bool \
+	-Wl,--wrap=purple_prefs_get_int \
+	-Wl,--wrap=purple_debug_error \
+	-Wl,--wrap=purple_debug_info \
+	-Wl,--wrap=purple_debug_misc
+	(set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n') # filter annoying and irrelevant glib output
+
+$(BDIR)/test_lurch_api: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_api.o
+	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $^ $(PURPLE_DIR)/libjabber.so.0 -o $@ $(LDFLAGS_T)
+	(set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n') # filter annoying and irrelevant glib output
+
+test: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(TEST_TARGETS)
 
 coverage: test
 	gcovr -r . --html --html-details -o build/coverage.html
