@@ -129,7 +129,7 @@ char * lurch_util_uname_get_db_fn(const char * uname, const char * which) {
 
 char * lurch_util_fp_get_printable(const char * fp) {
   char ** split = (void *) 0;
-  const size_t split_len = 32;
+  const size_t fp_parts_len = 32;
   char * printable = (void *) 0;
   const size_t printable_len = 72;
 
@@ -137,13 +137,14 @@ char * lurch_util_fp_get_printable(const char * fp) {
     return (void *) 0;
   }
 
-  split = g_strsplit(fp, ":", 0);
+  // first part is dismissed for display
+  split = g_strsplit(fp, ":", fp_parts_len + 1);
   printable = g_malloc0(printable_len);
 
-  for (int i = 1; i <= split_len; i++) {
+  for (int i = 1; i <= fp_parts_len; i++) {
     g_strlcat(printable, split[i], printable_len);
 
-    if (i % 4 == 0 && i != split_len) {
+    if (i % 4 == 0 && i != fp_parts_len) {
       g_strlcat(printable, " ", printable_len);
     }
   }
