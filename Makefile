@@ -160,11 +160,11 @@ $(BDIR)/test_lurch_util: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch
 	-Wl,--wrap=purple_debug_error \
 	-Wl,--wrap=purple_debug_info \
 	-Wl,--wrap=purple_debug_misc
-	(set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n') # filter annoying and irrelevant glib output
+	bash -c "set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n'" # filter annoying and irrelevant glib output
 
 $(BDIR)/test_lurch_api: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_api.o
 	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $^ $(PURPLE_DIR)/libjabber.so.0 -o $@ $(LDFLAGS_T)
-	(set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n') # filter annoying and irrelevant glib output
+	bash -c "set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n'" # filter annoying and irrelevant glib output
 
 test: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(TEST_TARGETS)
 
