@@ -44,3 +44,12 @@ typedef enum {
  *   If you do it wrong, there will be no compiler errors and the pointers are gibberish, so take care.
  *   You can easily get the plugin system handle anywhere by calling purple_plugins_get_handle().
  */
+
+/**
+ * SIGNAL: lurch-id-list
+ *
+ * Gets the specified account's OMEMO devicelist and passes it to the callback as a GList containing uint32_t *.
+ * To access the actual ID, cast the data member to a uint32_t * and dereference it.
+ * This device's ID will be the first item in the list.
+ */
+void lurch_api_id_list_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, GList * id_list, void * user_data_p), void * user_data_p);

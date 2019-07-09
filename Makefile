@@ -163,7 +163,10 @@ $(BDIR)/test_lurch_util: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch
 	bash -c "set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n'" # filter annoying and irrelevant glib output
 
 $(BDIR)/test_lurch_api: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_api.o
-	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $^ $(PURPLE_DIR)/libjabber.so.0 -o $@ $(LDFLAGS_T)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $^ $(PURPLE_DIR)/libjabber.so.0 -o $@ $(LDFLAGS_T) \
+	-Wl,--wrap=purple_account_get_username \
+	-Wl,--wrap=omemo_storage_user_devicelist_retrieve \
+	-Wl,--wrap=axc_get_device_id
 	bash -c "set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n'" # filter annoying and irrelevant glib output
 
 test: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(TEST_TARGETS)
