@@ -53,3 +53,10 @@ typedef enum {
  * This device's ID will be the first item in the list.
  */
 void lurch_api_id_list_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, GList * id_list, void * user_data_p), void * user_data_p);
+
+/**
+ * SIGNAL: lurch-id-remove
+ *
+ * Removes the specified OMEMO device ID from the specified account's devicelist.
+ */
+void lurch_api_id_remove_handler(PurpleAccount * acc_p, uint32_t device_id, void (*cb)(int32_t err, void * user_data_p), void * user_data_p);
