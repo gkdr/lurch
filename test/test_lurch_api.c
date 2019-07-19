@@ -263,6 +263,51 @@ static void test_lurch_api_enable_im_handler_err(void ** state) {
     lurch_api_enable_im_handler((void *) "ignored", contact_bare_jid, lurch_api_enable_im_handler_cb_mock, test_user_data);
 }
 
+static void lurch_api_disable_im_handler_cb_mock(int32_t err, void * user_data_p) {
+    check_expected(err);
+    check_expected(user_data_p);
+}
+
+/**
+ * Saves contact to 'the list' in the OMEMO DB when the signal is received, disabling OMEMO for this contact.
+ */
+static void test_lurch_api_disable_im_handler(void ** state) {
+    (void) state;
+
+    const char * contact_bare_jid = "contact_bare_jid";
+    const char * test_jid = "me-testing@test.org/resource";
+    will_return(__wrap_purple_account_get_username, test_jid);
+
+    expect_string(__wrap_omemo_storage_chatlist_save, chat, contact_bare_jid);
+    will_return(__wrap_omemo_storage_chatlist_save, EXIT_SUCCESS);
+
+    char * test_user_data = "TEST USER DATA";
+    expect_value(lurch_api_disable_im_handler_cb_mock, err, EXIT_SUCCESS);
+    expect_value(lurch_api_disable_im_handler_cb_mock, user_data_p, test_user_data);
+
+    lurch_api_disable_im_handler((void *) "ignored", contact_bare_jid, lurch_api_disable_im_handler_cb_mock, test_user_data);
+}
+
+/**
+ * Calls the callback with the return code in case of an error.
+ */
+static void test_lurch_api_disable_im_handler_err(void ** state) {
+    (void) state;
+
+    const char * contact_bare_jid = "contact_bare_jid";
+    const char * test_jid = "me-testing@test.org/resource";
+    will_return(__wrap_purple_account_get_username, test_jid);
+
+    expect_string(__wrap_omemo_storage_chatlist_save, chat, contact_bare_jid);
+    will_return(__wrap_omemo_storage_chatlist_save, 12345);
+
+    char * test_user_data = "TEST USER DATA";
+    expect_value(lurch_api_disable_im_handler_cb_mock, err, 12345);
+    expect_value(lurch_api_disable_im_handler_cb_mock, user_data_p, test_user_data);
+
+    lurch_api_disable_im_handler((void *) "ignored", contact_bare_jid, lurch_api_disable_im_handler_cb_mock, test_user_data);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_lurch_api_id_list_handler),
@@ -270,7 +315,9 @@ int main(void) {
         cmocka_unit_test(test_lurch_api_id_remove_handler),
         cmocka_unit_test(test_lurch_api_id_remove_handler_id_not_in_list),
         cmocka_unit_test(test_lurch_api_enable_im_handler),
-        cmocka_unit_test(test_lurch_api_enable_im_handler_err)
+        cmocka_unit_test(test_lurch_api_enable_im_handler_err),
+        cmocka_unit_test(test_lurch_api_disable_im_handler),
+        cmocka_unit_test(test_lurch_api_disable_im_handler_err)
     };
 
     return cmocka_run_group_tests_name("lurch_api", tests, NULL, NULL);
