@@ -55,6 +55,22 @@ PurpleConnection * __wrap_purple_account_get_connection(PurpleAccount * acc_p) {
     function_called();
 }
 
+int __wrap_omemo_storage_chatlist_delete(const char * chat, const char * db_fn) {
+    check_expected(chat);
+
+    int ret_val;
+    ret_val = mock_type(int);
+    return ret_val;
+}
+
+int __wrap_omemo_storage_chatlist_save(const char * chat, const char * db_fn) {
+    check_expected(chat);
+
+    int ret_val;
+    ret_val = mock_type(int);
+    return ret_val;
+}
+
 void lurch_api_id_list_handler_cb_mock(int32_t err, GList * id_list, void * user_data_p) {
     check_expected(err);
 
@@ -173,7 +189,7 @@ static void test_lurch_api_id_remove_handler(void ** state) {
 }
 
 /**
- * Fail when the device ID to remove is not in the own devicelist.
+ * Fails when the device ID to remove is not in the own devicelist, and call the callback with the correct error code.
  */
 static void test_lurch_api_id_remove_handler_id_not_in_list(void ** state) {
     (void) state;
@@ -202,12 +218,59 @@ static void test_lurch_api_id_remove_handler_id_not_in_list(void ** state) {
     lurch_api_id_remove_handler((void *) "ignored", 7331, lurch_api_id_remove_handler_cb_mock, test_user_data);
 }
 
+static void lurch_api_enable_im_handler_cb_mock(int32_t err, void * user_data_p) {
+    check_expected(err);
+    check_expected(user_data_p);
+}
+
+/**
+ * Deletes contact from 'the list' in the OMEMO DB when the signal is received, enabling OMEMO for this contact.
+ */
+static void test_lurch_api_enable_im_handler(void ** state) {
+    (void) state;
+
+    const char * contact_bare_jid = "contact_bare_jid";
+    const char * test_jid = "me-testing@test.org/resource";
+    will_return(__wrap_purple_account_get_username, test_jid);
+
+    expect_string(__wrap_omemo_storage_chatlist_delete, chat, contact_bare_jid);
+    will_return(__wrap_omemo_storage_chatlist_delete, EXIT_SUCCESS);
+
+    char * test_user_data = "TEST USER DATA";
+    expect_value(lurch_api_enable_im_handler_cb_mock, err, EXIT_SUCCESS);
+    expect_value(lurch_api_enable_im_handler_cb_mock, user_data_p, test_user_data);
+
+    lurch_api_enable_im_handler((void *) "ignored", contact_bare_jid, lurch_api_enable_im_handler_cb_mock, test_user_data);
+}
+
+/**
+ * Calls the callback with the return code in case of an error.
+ */
+static void test_lurch_api_enable_im_handler_err(void ** state) {
+    (void) state;
+
+    const char * contact_bare_jid = "contact_bare_jid";
+    const char * test_jid = "me-testing@test.org/resource";
+    will_return(__wrap_purple_account_get_username, test_jid);
+
+    expect_string(__wrap_omemo_storage_chatlist_delete, chat, contact_bare_jid);
+    will_return(__wrap_omemo_storage_chatlist_delete, EXIT_FAILURE);
+
+    char * test_user_data = "TEST USER DATA";
+    expect_value(lurch_api_enable_im_handler_cb_mock, err, EXIT_FAILURE);
+    expect_value(lurch_api_enable_im_handler_cb_mock, user_data_p, test_user_data);
+
+    lurch_api_enable_im_handler((void *) "ignored", contact_bare_jid, lurch_api_enable_im_handler_cb_mock, test_user_data);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_lurch_api_id_list_handler),
         cmocka_unit_test(test_lurch_api_id_list_handler_error),
         cmocka_unit_test(test_lurch_api_id_remove_handler),
-        cmocka_unit_test(test_lurch_api_id_remove_handler_id_not_in_list)
+        cmocka_unit_test(test_lurch_api_id_remove_handler_id_not_in_list),
+        cmocka_unit_test(test_lurch_api_enable_im_handler),
+        cmocka_unit_test(test_lurch_api_enable_im_handler_err)
     };
 
     return cmocka_run_group_tests_name("lurch_api", tests, NULL, NULL);
