@@ -190,7 +190,6 @@ void lurch_api_fp_get_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, con
   char * uname = (void *) 0;
   axc_context * axc_ctx_p = (void *) 0;
   axc_buf * key_buf_p = (void *) 0;
-  gchar * fp = (void *) 0;
   char * fp_printable = (void *) 0;
 
   uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
@@ -207,20 +206,18 @@ void lurch_api_fp_get_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, con
     goto cleanup;
   }
 
-  fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
-  fp_printable = lurch_util_fp_get_printable(fp);
+  fp_printable = lurch_util_fp_get_printable(key_buf_p);
 
 cleanup:
   cb(ret_val, fp_printable, user_data_p);
 
   g_free(fp_printable);
-  g_free(fp);
   axc_buf_free(key_buf_p);
   axc_context_destroy_all(axc_ctx_p);
 }
 
 /**
- * Given a list of IDs, retrieves the public keys from the libsignal sessions and creates hash table with ID to fingerprint pairs.
+ * Given a list of IDs, retrieves the public keys from the libsignal sessions and creates a hash table with ID to fingerprint pairs.
  * If there is an entry in the devicelist, but no session yet, the fingerprint cannot be retrieved this way and the value will be NULL.
  * g_hash_table_destroy() the table when done with it.
  */
@@ -230,7 +227,6 @@ static int32_t lurch_api_fp_create_table(const char * jid,  axc_context * axc_ct
   const GList * curr_p = (void *) 0;
   uint32_t curr_device_id = 0;
   axc_buf * key_buf_p = (void *) 0;
-  gchar * fp = (void *) 0;
 
   id_fp_table = g_hash_table_new_full(g_int_hash, g_int_equal, NULL, g_free);
 
@@ -247,13 +243,10 @@ static int32_t lurch_api_fp_create_table(const char * jid,  axc_context * axc_ct
       continue;
     }
 
-    fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
-    (void) g_hash_table_insert(id_fp_table, curr_p->data, lurch_util_fp_get_printable(fp));
+    (void) g_hash_table_insert(id_fp_table, curr_p->data, lurch_util_fp_get_printable(key_buf_p));
 
     axc_buf_free(key_buf_p);
     key_buf_p = (void *) 0;
-    g_free(fp);
-    fp = (void *) 0;
 
     ret_val = 0;
   }
@@ -276,7 +269,6 @@ void lurch_api_fp_list_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, GH
   axc_context * axc_ctx_p = (void *) 0;
   GHashTable * id_fp_table = (void *) 0;
   axc_buf * key_buf_p = (void *) 0;
-  gchar * fp = (void *) 0;
 
   ret_val = lurch_api_id_list_get_own(acc_p, &own_id_list);
   if (ret_val) {
@@ -306,10 +298,7 @@ void lurch_api_fp_list_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, GH
     goto cleanup;
   }
 
-  fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
-  (void) g_hash_table_insert(id_fp_table, own_id_list->data, lurch_util_fp_get_printable(fp));
-  g_free(fp);
-  fp = (void *) 0;
+  (void) g_hash_table_insert(id_fp_table, own_id_list->data, lurch_util_fp_get_printable(key_buf_p));
 
 cleanup:
   cb(ret_val, id_fp_table, user_data_p);
@@ -319,7 +308,6 @@ cleanup:
   axc_context_destroy_all(axc_ctx_p);
   g_hash_table_destroy(id_fp_table);
   axc_buf_free(key_buf_p);
-  g_free(fp);
 }
 
 // returns NULL as hash table if devicelist is empty

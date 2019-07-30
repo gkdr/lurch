@@ -2142,7 +2142,6 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
   uint32_t id = 0;
   uint32_t remove_id = 0;
   axc_buf * key_buf_p = (void *) 0;
-  gchar * fp = (void *) 0;
   char * fp_printable = (void *) 0;
   omemo_devicelist * own_dl_p = (void *) 0;
   omemo_devicelist * other_dl_p = (void *) 0;
@@ -2302,8 +2301,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
               goto cleanup;
             }
 
-            fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
-            fp_printable = lurch_util_fp_get_printable(fp);
+            fp_printable = lurch_util_fp_get_printable(key_buf_p);
             msg = g_strdup_printf("This device's fingerprint is:\n%s\n"
                                   "You should make sure that your conversation partner gets displayed the same for this device.", fp_printable);
           } else if (!g_strcmp0(args[2], "conv")) {
@@ -2314,8 +2312,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
               goto cleanup;
             }
 
-            fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
-            fp_printable = lurch_util_fp_get_printable(fp);
+            fp_printable = lurch_util_fp_get_printable(key_buf_p);
 
             temp_msg_1 = g_strdup_printf("The devices participating in this conversation and their fingerprints are as follows:\n"
                                          "This device's (%s:%i) fingerprint:\n%s\n", uname, id, fp_printable);
@@ -2337,9 +2334,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
                   continue;
                 }
 
-                g_free(fp);
-                fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
-                fp_printable = lurch_util_fp_get_printable(fp);
+                fp_printable = lurch_util_fp_get_printable(key_buf_p);
                 axc_buf_free(key_buf_p);
                 key_buf_p = (void *) 0;
 
@@ -2371,9 +2366,7 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
                 continue;
               }
 
-              g_free(fp);
-              fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
-              fp_printable = lurch_util_fp_get_printable(fp);
+              fp_printable = lurch_util_fp_get_printable(key_buf_p);
               axc_buf_free(key_buf_p);
               key_buf_p = (void *) 0;
 
@@ -2475,7 +2468,6 @@ cleanup:
   axc_context_destroy_all(axc_ctx_p);
   g_free(msg);
   axc_buf_free(key_buf_p);
-  g_free(fp);
   g_free(fp_printable);
   omemo_devicelist_destroy(own_dl_p);
   omemo_devicelist_destroy(other_dl_p);

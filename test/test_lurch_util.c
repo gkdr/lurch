@@ -48,6 +48,12 @@ int __wrap_purple_prefs_get_int(const char * pref_name) {
     return pref_val;
 }
 
+char * __wrap_purple_base16_encode_chunked(const guchar *data, gsize len) {
+    char * fp;
+    fp = mock_ptr_type(char *);
+    return fp;
+}
+
 /**
  * Log only errors when log level is set to AXC_LOG_ERROR, using purple_debug_error().
  */
@@ -165,10 +171,11 @@ static void test_lurch_util_fp_get_printable(void ** state) {
     const char * fp_as_returned_by_pidgin =
         "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cd:ef:gh";
 
-    char * printable_fp = lurch_util_fp_get_printable(fp_as_returned_by_pidgin);
+    will_return(__wrap_purple_base16_encode_chunked, g_strdup(fp_as_returned_by_pidgin));
+
+    char * printable_fp = lurch_util_fp_get_printable((void *) &"fake non-null pointer");
     assert_non_null(printable_fp);
     assert_string_equal(printable_fp, "34567812 34567812 34567812 34567812 34567812 34567812 34567812 abcdefgh");
-
 }
 
 static void test_lurch_util_fp_get_printable_invalid(void ** state) {
@@ -176,13 +183,19 @@ static void test_lurch_util_fp_get_printable_invalid(void ** state) {
 
     assert_null(lurch_util_fp_get_printable(NULL));
 
+    will_return(__wrap_purple_base16_encode_chunked, NULL);
+    assert_null(lurch_util_fp_get_printable((void *) &"fake non-null pointer"));
+
     const char * too_short =
         "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cd:efgh";
+    will_return(__wrap_purple_base16_encode_chunked, g_strdup(too_short));
+    assert_null(lurch_util_fp_get_printable((void *) &"fake non-null pointer"));
+
     const char * too_long =
         "12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:34:56:78:12:ab:cd:ef:gh:";
+    will_return(__wrap_purple_base16_encode_chunked, g_strdup(too_long));
 
-    assert_null(lurch_util_fp_get_printable(too_short));
-    assert_null(lurch_util_fp_get_printable(too_long));
+    assert_null(lurch_util_fp_get_printable((void *) &"fake non-null pointer"));
 }
 
 int main(void) {

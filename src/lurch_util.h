@@ -44,7 +44,7 @@ char * lurch_util_uname_get_db_fn(const char * uname, const char * which);
  * Creates a fingerprint which resembles the one displayed by Conversations etc.
  * Also useful for avoiding the smileys produced by ':d'...
  *
- * @param fp The fingerprint string as returned by purple_base16_encode_chunked
+ * @param key_buf_p The buffer containing the public key data.
  * @return A newly allocated string which contains the fingerprint in printable format, or NULL. g_free() when done.
  */
-char * lurch_util_fp_get_printable(const char * fp);
+char * lurch_util_fp_get_printable(axc_buf * key_buf_p);

@@ -159,7 +159,8 @@ $(BDIR)/test_lurch_util: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch
 	-Wl,--wrap=purple_prefs_get_int \
 	-Wl,--wrap=purple_debug_error \
 	-Wl,--wrap=purple_debug_info \
-	-Wl,--wrap=purple_debug_misc
+	-Wl,--wrap=purple_debug_misc \
+	-Wl,--wrap=purple_base16_encode_chunked
 	bash -c "set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n'" # filter annoying and irrelevant glib output
 
 $(BDIR)/test_lurch_api: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_api.o

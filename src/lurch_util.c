@@ -127,14 +127,22 @@ char * lurch_util_uname_get_db_fn(const char * uname, const char * which) {
   return g_strconcat(purple_user_dir(), "/", uname, "_", which, LURCH_DB_SUFFIX, NULL);
 }
 
-char * lurch_util_fp_get_printable(const char * fp) {
+char * lurch_util_fp_get_printable(axc_buf * key_buf_p) {
+  gchar * fp = (void *) 0;
   char ** split = (void *) 0;
   const size_t fp_parts_len = 32;
   char * printable = (void *) 0;
   const size_t printable_len = 72;
 
+  if (!key_buf_p) {
+    purple_debug_warning("lurch", "%s: Key buffer is null, aborting\n", __func__);
+    goto cleanup;
+  }
+
+  fp = purple_base16_encode_chunked(axc_buf_get_data(key_buf_p), axc_buf_get_len(key_buf_p));
   if (!fp || strlen(fp) != 98) {
-    return (void *) 0;
+    purple_debug_warning("lurch", "%s: Unexpected fingerprint length, aborting\n", __func__);
+    goto cleanup;
   }
 
   // first part is dismissed for display
@@ -149,6 +157,10 @@ char * lurch_util_fp_get_printable(const char * fp) {
     }
   }
 
+cleanup:
+  g_free(fp);
   g_strfreev(split);
+
   return printable;
 }
+
