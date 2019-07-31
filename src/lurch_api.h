@@ -74,3 +74,10 @@ void lurch_api_enable_im_handler(PurpleAccount * acc_p, const char * contact_bar
  * Disables OMEMO for the specified contact.
  */
 void lurch_api_disable_im_handler(PurpleAccount * acc_p, const char * contact_bare_jid, void (*cb)(int32_t err, void * user_data_p), void * user_data_p);
+
+/**
+ * SIGNAL: lurch-fp-get
+ *
+ * Gets the this device's fingerprint in a printable format.
+ */
+void lurch_api_fp_get_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, const char * fp_printable, void * user_data_p), void * user_data_p);

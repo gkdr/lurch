@@ -308,6 +308,79 @@ static void test_lurch_api_disable_im_handler_err(void ** state) {
     lurch_api_disable_im_handler((void *) "ignored", contact_bare_jid, lurch_api_disable_im_handler_cb_mock, test_user_data);
 }
 
+int __wrap_axc_key_load_public_own(axc_context * ctx_p, axc_buf ** pubkey_data_pp) {
+    void * pubkey_data_p;
+    int ret_val;
+
+    pubkey_data_p = mock_ptr_type(void *);
+    *pubkey_data_pp = pubkey_data_p;
+
+    ret_val = mock_type(int);
+    return ret_val;
+}
+
+char * __wrap_lurch_util_fp_get_printable(axc_buf * key_buf_p) {
+    function_called();
+
+    check_expected(key_buf_p);
+
+    char * ret_val;
+    ret_val = mock_ptr_type(char *);
+    return ret_val;
+}
+
+void lurch_api_fp_get_handler_cb_mock(int32_t err, const char * fp_printable, void * user_data_p) {
+    check_expected(err);
+    check_expected(fp_printable);
+    check_expected(user_data_p);
+}
+
+/**
+ * Loads the account's public identity key and returns a fingerprint suitable for display.
+ */
+static void test_lurch_api_fp_get_handler(void ** state) {
+    (void) state;
+
+    const char * test_jid = "me-testing@test.org/resource";
+    will_return(__wrap_purple_account_get_username, test_jid);
+
+    axc_buf * mock_key_data_buf_p = axc_buf_create(NULL, 0);
+    will_return(__wrap_axc_key_load_public_own, mock_key_data_buf_p);
+    will_return(__wrap_axc_key_load_public_own, EXIT_SUCCESS);
+
+    expect_function_call(__wrap_lurch_util_fp_get_printable);
+    expect_value(__wrap_lurch_util_fp_get_printable, key_buf_p, mock_key_data_buf_p);
+    char * mock_fp = g_strdup("MOCK FINGERPRINT");
+    will_return(__wrap_lurch_util_fp_get_printable, mock_fp);
+
+    char * test_user_data = "TEST USER DATA";
+    expect_value(lurch_api_fp_get_handler_cb_mock, err, EXIT_SUCCESS);
+    expect_string(lurch_api_fp_get_handler_cb_mock, fp_printable, mock_fp);
+    expect_value(lurch_api_fp_get_handler_cb_mock, user_data_p, test_user_data);
+
+    lurch_api_fp_get_handler(NULL, lurch_api_fp_get_handler_cb_mock, test_user_data);
+}
+
+/**
+ * Calls the callback with the return code in case of an error.
+ */
+static void test_lurch_api_fp_get_handler_err(void ** state) {
+    (void) state;
+
+    const char * test_jid = "me-testing@test.org/resource";
+    will_return(__wrap_purple_account_get_username, test_jid);
+
+    will_return(__wrap_axc_key_load_public_own, NULL);
+    will_return(__wrap_axc_key_load_public_own, EXIT_FAILURE);
+
+    char * test_user_data = "TEST USER DATA";
+    expect_value(lurch_api_fp_get_handler_cb_mock, err, EXIT_FAILURE);
+    expect_value(lurch_api_fp_get_handler_cb_mock, fp_printable, NULL);
+    expect_value(lurch_api_fp_get_handler_cb_mock, user_data_p, test_user_data);
+
+    lurch_api_fp_get_handler(NULL, lurch_api_fp_get_handler_cb_mock, test_user_data);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_lurch_api_id_list_handler),
@@ -317,7 +390,9 @@ int main(void) {
         cmocka_unit_test(test_lurch_api_enable_im_handler),
         cmocka_unit_test(test_lurch_api_enable_im_handler_err),
         cmocka_unit_test(test_lurch_api_disable_im_handler),
-        cmocka_unit_test(test_lurch_api_disable_im_handler_err)
+        cmocka_unit_test(test_lurch_api_disable_im_handler_err),
+        cmocka_unit_test(test_lurch_api_fp_get_handler),
+        cmocka_unit_test(test_lurch_api_fp_get_handler_err)
     };
 
     return cmocka_run_group_tests_name("lurch_api", tests, NULL, NULL);

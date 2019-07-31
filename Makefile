@@ -171,7 +171,9 @@ $(BDIR)/test_lurch_api: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_
 	-Wl,--wrap=jabber_pep_publish \
 	-Wl,--wrap=purple_account_get_connection \
 	-Wl,--wrap=omemo_storage_chatlist_delete \
-	-Wl,--wrap=omemo_storage_chatlist_save
+	-Wl,--wrap=omemo_storage_chatlist_save \
+	-Wl,--wrap=axc_key_load_public_own \
+	-Wl,--wrap=lurch_util_fp_get_printable
 	bash -c "set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n'" # filter annoying and irrelevant glib output
 
 test: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(TEST_TARGETS)
