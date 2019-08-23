@@ -81,3 +81,13 @@ void lurch_api_disable_im_handler(PurpleAccount * acc_p, const char * contact_ba
  * Gets the this device's fingerprint in a printable format.
  */
 void lurch_api_fp_get_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, const char * fp_printable, void * user_data_p), void * user_data_p);
+
+/**
+ * SIGNAL: lurch-fp-list
+ *
+ * Gets the fingerprints of all devices belonging to the specified account and creates a device-ID-to-fingerprint table.
+ * This is based on sessions, so if there is an entry in the OMEMO devicelist, but no libsignal session yet, the value will be NULL.
+ * If the whole devicelist is empty, i.e. the account is not an OMEMO user, the whole table will be NULL.
+ * Watch out as this is not a valid GHashTable.
+ */
+void lurch_api_fp_list_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, GHashTable * id_fp_table, void * user_data_p), void * user_data_p);
