@@ -37,8 +37,6 @@
 #define JABBER_MAX_LEN_DOMAIN 1023
 #define JABBER_MAX_LEN_BARE JABBER_MAX_LEN_NODE + JABBER_MAX_LEN_DOMAIN + 1
 
-#define LURCH_ACC_SETTING_INITIALIZED "lurch_initialised"
-
 #define LURCH_ERR_STRING_ENCRYPT "There was an error encrypting the message and it was not sent. " \
                                  "You can try again, or try to find the problem by looking at the debug log."
 #define LURCH_ERR_STRING_DECRYPT "There was an error decrypting an OMEMO message addressed to this device. " \
@@ -146,6 +144,9 @@ static char * lurch_queue_make_key_string_s(const char * name, const char * devi
  * Does the first-time install of the axc DB.
  * As specified in OMEMO, it checks if the generated device ID already exists.
  * Therefore, it should be called at a point in time when other entries exist.
+ * 
+ * If an initialized DB already exists, this function exits with success without doing anything.
+ * This is checked by trying to retrieve the device ID from it.
  *
  * @param uname The username.
  * @return 0 on success, negative on error.
@@ -996,7 +997,6 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
   int len = 0;
   PurpleAccount * acc_p = (void *) 0;
   char * uname = (void *) 0;
-  int install = 0;
   axc_context * axc_ctx_p = (void *) 0;
   uint32_t own_id = 0;
   int needs_publishing = 1;
@@ -1007,9 +1007,7 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
   acc_p = purple_connection_get_account(js_p->gc);
   uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
 
-  install = (purple_account_get_bool(acc_p, LURCH_ACC_SETTING_INITIALIZED, FALSE)) ? 0 : 1;
-
-  if (install && !uninstall) {
+  if (!uninstall) {
     purple_debug_info("lurch", "%s: %s\n", __func__, "preparing installation...");
     ret_val = lurch_axc_prepare(uname);
     if (ret_val) {
@@ -1092,10 +1090,6 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
     goto cleanup;
   }
 
-  if (install && !uninstall) {
-    purple_account_set_bool(acc_p, LURCH_ACC_SETTING_INITIALIZED, TRUE);
-  }
-
   ret_val = lurch_devicelist_process(uname, dl_p, js_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to process the devicelist");
@@ -1157,24 +1151,23 @@ cleanup:
 
 /**
  * Set as callback for the "account connected" signal.
- * Requests the own devicelist, as that requires an active connection (as
- * opposed to just registering PEP handlers).
- * Also inits the msg queue hashtable.
+ * Requests the own devicelist, as that requires an active connection (as opposed to just registering PEP handlers).
  */
 static void lurch_account_connect_cb(PurpleAccount * acc_p) {
   int ret_val = 0;
 
-  char * uname = (void *) 0;
   JabberStream * js_p = (void *) 0;
+  char * uname = (void *) 0;
   char * dl_ns = (void *) 0;
-
- // purple_account_set_bool(acc_p, LURCH_ACC_SETTING_INITIALIZED, FALSE);
 
   js_p = purple_connection_get_protocol_data(purple_account_get_connection(acc_p));
 
   if (strncmp(purple_account_get_protocol_id(acc_p), JABBER_PROTOCOL_ID, strlen(JABBER_PROTOCOL_ID))) {
     return;
   }
+
+  // remove unused account preferences
+  purple_account_remove_setting(acc_p, "lurch_initialised");
 
   ret_val = omemo_devicelist_get_pep_node_name(&dl_ns);
   if (ret_val) {
@@ -2204,7 +2197,6 @@ static PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
       }
 
       uninstall = 1;
-      purple_account_set_bool(purple_conversation_get_account(conv_p), LURCH_ACC_SETTING_INITIALIZED, FALSE);
       dl_node_p = xmlnode_from_str(temp_msg_1, -1);
       jabber_pep_publish(purple_connection_get_protocol_data(purple_conversation_get_gc(conv_p)), dl_node_p);
       msg = g_strdup_printf("Published devicelist minus this device's ID. "
