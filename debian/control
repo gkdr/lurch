@@ -1,0 +1,25 @@
+Source: lurch
+Section: net
+Priority: optional
+Maintainer: Richard Bayerle <riba@firemail.cc>
+Build-Depends:
+ debhelper (>= 11),
+ cmake,
+ libpurple-dev,
+ libpurple0,
+ libmxml-dev,
+ libxml2-dev,
+ libsqlite3-dev,
+ libgcrypt20-dev,
+ libcmocka-dev,
+Standards-Version: 4.2.1
+Homepage: https://github.com/gkdr/lurch
+
+Package: purple-lurch
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: libpurple plugin for OMEMO Encryption
+ This plugin brings Axolotl to libpurple applications such as
+ Pidgin or Chatty by implementing the XEP-0384: OMEMO Encryption.
