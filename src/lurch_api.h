@@ -91,3 +91,10 @@ void lurch_api_fp_get_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, con
  * Watch out as this is not a valid GHashTable.
  */
 void lurch_api_fp_list_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, GHashTable * id_fp_table, void * user_data_p), void * user_data_p);
+
+/**
+ * SIGNAL: lurch-fp-other
+ *
+ * Same as above, but for the specified contact.
+ */
+void lurch_api_fp_other_handler(PurpleAccount * acc_p, const char * contact_bare_jid, void (*cb)(int32_t err, GHashTable * id_fp_table, void * user_data_p), void * user_data_p);
