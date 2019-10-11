@@ -5,6 +5,13 @@
 #define LURCH_ERR_NO_BUNDLE          -1000010
 #define LURCH_ERR_DEVICE_NOT_IN_LIST -1000100
 
+typedef enum {
+    LURCH_STATUS_DISABLED = 0,  // manually disabled
+    LURCH_STATUS_NOT_SUPPORTED, // no OMEMO support, i.e. there is no devicelist node
+    LURCH_STATUS_NO_SESSION,    // OMEMO is supported, but there is no libsignal session yet
+    LURCH_STATUS_OK             // OMEMO is supported and session exists
+} lurch_status_t;
+
 /**
  * Initializes the API by registering the signals and signal handlers.
  */
@@ -14,14 +21,6 @@ void lurch_api_init();
 * Unregisters the signals and disconnects the signal handlers.
 */
 void lurch_api_unload();
-
-typedef enum {
-    LURCH_STATUS_DISABLED = 0,  // manually disabled
-    LURCH_STATUS_NOT_SUPPORTED, // no OMEMO support, i.e. there is no devicelist node
-    LURCH_STATUS_NO_SESSION,    // OMEMO is supported, but there is no libsignal session yet
-    LURCH_STATUS_OK             // OMEMO is supported and session exists
-} lurch_status_t;
-
 
 /**
  * USAGE
@@ -98,3 +97,10 @@ void lurch_api_fp_list_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, GH
  * Same as above, but for the specified contact.
  */
 void lurch_api_fp_other_handler(PurpleAccount * acc_p, const char * contact_bare_jid, void (*cb)(int32_t err, GHashTable * id_fp_table, void * user_data_p), void * user_data_p);
+
+/**
+ * SIGNAL: lurch-status-im
+ *
+ * Checks the OMEMO status for the given contact. Result is one of lurch_status_t.
+ */
+void lurch_api_status_im_handler(PurpleAccount * acc_p, const char * contact_bare_jid, void (*cb)(int32_t err, lurch_status_t status, void * user_data_p), void * user_data_p);

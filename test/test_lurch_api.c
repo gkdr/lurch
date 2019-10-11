@@ -73,6 +73,14 @@ int __wrap_omemo_storage_chatlist_save(const char * chat, const char * db_fn) {
     return ret_val;
 }
 
+int __wrap_omemo_storage_chatlist_exists(const char * chat, const char * db_fn) {
+    check_expected(chat);
+    
+    int ret_val;
+    ret_val = mock_type(int);
+    return ret_val;
+}
+
 int __wrap_axc_key_load_public_own(axc_context * ctx_p, axc_buf ** pubkey_data_pp) {
     void * pubkey_data_p;
     int ret_val;
@@ -93,6 +101,15 @@ int __wrap_axc_key_load_public_addr(const char * name, uint32_t device_id, axc_c
 
     pubkey_data_p = mock_ptr_type(void *);
     *pubkey_data_pp = pubkey_data_p;
+
+    ret_val = mock_type(int);
+    return ret_val;
+}
+
+int __wrap_axc_session_exists_any(const char * name, axc_context * ctx_p) {
+    int ret_val;
+
+    check_expected(name);
 
     ret_val = mock_type(int);
     return ret_val;
@@ -650,6 +667,169 @@ static void test_lurch_api_fp_other_handler_err(void ** state) {
     lurch_api_fp_other_handler(NULL, other_bare_jid, list_handling_cb_mock, NULL);
 }
 
+static void lurch_api_status_im_handler_cb_mock(int32_t err, lurch_status_t status, void * user_data_p) {
+    check_expected(err);
+    check_expected(status);
+    check_expected(user_data_p);
+}
+
+/**
+ * Passes the "disabled" status if the chat is found in the blacklist.
+ */
+static void test_lurch_api_status_im_handler_disabled(void ** state) {
+    (void) state;
+
+    const char * own_jid = "me-testing@test.org/resource";
+    const char * other_bare_jid = "other-guy-testing@test.org";
+    will_return(__wrap_purple_account_get_username, own_jid);
+
+    expect_value(__wrap_omemo_storage_chatlist_exists, chat, other_bare_jid);
+    will_return(__wrap_omemo_storage_chatlist_exists, 1);
+
+    expect_value(lurch_api_status_im_handler_cb_mock, err, 0);
+    expect_value(lurch_api_status_im_handler_cb_mock, status, LURCH_STATUS_DISABLED);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_im_handler_cb_mock, user_data_p, mock_user_data);
+
+    lurch_api_status_im_handler(NULL, other_bare_jid, lurch_api_status_im_handler_cb_mock, mock_user_data);
+}
+
+/**
+ * Passes the "not supported" status if the contact does not have a devicelist.
+ */
+static void test_lurch_api_status_im_handler_not_supported(void ** state) {
+    (void) state;
+
+    const char * own_jid = "me-testing@test.org/resource";
+    const char * other_jid = "other-guy-testing@test.org/resource";
+    const char * other_bare_jid = "other-guy-testing@test.org";
+    will_return(__wrap_purple_account_get_username, own_jid);
+
+    expect_value(__wrap_omemo_storage_chatlist_exists, chat, other_bare_jid);
+    will_return(__wrap_omemo_storage_chatlist_exists, 0);
+
+
+    char * devicelist = "<items node='urn:xmpp:omemo:0:devicelist'>"
+                              "<item>"
+                                "<list xmlns='urn:xmpp:omemo:0'>"
+                                "</list>"
+                              "</item>"
+                            "</items>";
+
+    omemo_devicelist * dl_p;
+    omemo_devicelist_import(devicelist, other_jid, &dl_p);
+    will_return(__wrap_omemo_storage_user_devicelist_retrieve, dl_p);
+    will_return(__wrap_omemo_storage_user_devicelist_retrieve, EXIT_SUCCESS);
+
+    expect_value(lurch_api_status_im_handler_cb_mock, err, 0);
+    expect_value(lurch_api_status_im_handler_cb_mock, status, LURCH_STATUS_NOT_SUPPORTED);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_im_handler_cb_mock, user_data_p, mock_user_data);
+
+    lurch_api_status_im_handler(NULL, other_bare_jid, lurch_api_status_im_handler_cb_mock, mock_user_data);
+}
+
+/**
+ * Passes the "no session" status if the contact has a devicelist, but there is no libsignal session.
+ */
+static void test_lurch_api_status_im_handler_no_session(void ** state) {
+    (void) state;
+
+    const char * own_jid = "me-testing@test.org/resource";
+    const char * other_jid = "other-guy-testing@test.org/resource";
+    const char * other_bare_jid = "other-guy-testing@test.org";
+    will_return(__wrap_purple_account_get_username, own_jid);
+
+    expect_value(__wrap_omemo_storage_chatlist_exists, chat, other_bare_jid);
+    will_return(__wrap_omemo_storage_chatlist_exists, 0);
+
+
+    char * devicelist = "<items node='urn:xmpp:omemo:0:devicelist'>"
+                              "<item>"
+                                "<list xmlns='urn:xmpp:omemo:0'>"
+                                    "<device id='4223' />"
+                                "</list>"
+                              "</item>"
+                            "</items>";
+
+    omemo_devicelist * dl_p;
+    omemo_devicelist_import(devicelist, other_jid, &dl_p);
+    will_return(__wrap_omemo_storage_user_devicelist_retrieve, dl_p);
+    will_return(__wrap_omemo_storage_user_devicelist_retrieve, EXIT_SUCCESS);
+
+    expect_value(__wrap_axc_session_exists_any, name, other_bare_jid);
+    will_return(__wrap_axc_session_exists_any, 0);
+
+    expect_value(lurch_api_status_im_handler_cb_mock, err, 0);
+    expect_value(lurch_api_status_im_handler_cb_mock, status, LURCH_STATUS_NO_SESSION);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_im_handler_cb_mock, user_data_p, mock_user_data);
+
+    lurch_api_status_im_handler(NULL, other_bare_jid, lurch_api_status_im_handler_cb_mock, mock_user_data);
+}
+
+/**
+ * Passes the "OK" status if contact has a devicelist and a session exists.
+ */
+static void test_lurch_api_status_im_handler_ok(void ** state) {
+    (void) state;
+
+    const char * own_jid = "me-testing@test.org/resource";
+    const char * other_jid = "other-guy-testing@test.org/resource";
+    const char * other_bare_jid = "other-guy-testing@test.org";
+    will_return(__wrap_purple_account_get_username, own_jid);
+
+    expect_value(__wrap_omemo_storage_chatlist_exists, chat, other_bare_jid);
+    will_return(__wrap_omemo_storage_chatlist_exists, 0);
+
+
+    char * devicelist = "<items node='urn:xmpp:omemo:0:devicelist'>"
+                              "<item>"
+                                "<list xmlns='urn:xmpp:omemo:0'>"
+                                    "<device id='4223' />"
+                                "</list>"
+                              "</item>"
+                            "</items>";
+
+    omemo_devicelist * dl_p;
+    omemo_devicelist_import(devicelist, other_jid, &dl_p);
+    will_return(__wrap_omemo_storage_user_devicelist_retrieve, dl_p);
+    will_return(__wrap_omemo_storage_user_devicelist_retrieve, EXIT_SUCCESS);
+
+    expect_value(__wrap_axc_session_exists_any, name, other_bare_jid);
+    will_return(__wrap_axc_session_exists_any, 1);
+
+    expect_value(lurch_api_status_im_handler_cb_mock, err, 0);
+    expect_value(lurch_api_status_im_handler_cb_mock, status, LURCH_STATUS_OK);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_im_handler_cb_mock, user_data_p, mock_user_data);
+
+    lurch_api_status_im_handler(NULL, other_bare_jid, lurch_api_status_im_handler_cb_mock, mock_user_data);
+}
+
+/**
+ * Passes "disabled" and the exact error code if something goes wrong.
+ */ 
+static void test_lurch_api_status_im_handler_err(void ** state) {
+    (void) state;
+
+    const char * own_jid = "me-testing@test.org/resource";
+    const char * other_bare_jid = "other-guy-testing@test.org";
+    will_return(__wrap_purple_account_get_username, own_jid);
+
+    int fake_errcode = -1337;
+
+    expect_value(__wrap_omemo_storage_chatlist_exists, chat, other_bare_jid);
+    will_return(__wrap_omemo_storage_chatlist_exists, fake_errcode);
+
+    expect_value(lurch_api_status_im_handler_cb_mock, err, fake_errcode);
+    expect_value(lurch_api_status_im_handler_cb_mock, status, LURCH_STATUS_DISABLED);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_im_handler_cb_mock, user_data_p, mock_user_data);
+
+    lurch_api_status_im_handler(NULL, other_bare_jid, lurch_api_status_im_handler_cb_mock, mock_user_data);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_lurch_api_id_list_handler),
@@ -667,7 +847,12 @@ int main(void) {
         cmocka_unit_test(test_lurch_api_fp_other_handler),
         cmocka_unit_test(test_lurch_api_fp_other_handler_keyerr),
         cmocka_unit_test(test_lurch_api_fp_other_handler_empty),
-        cmocka_unit_test(test_lurch_api_fp_other_handler_err)
+        cmocka_unit_test(test_lurch_api_fp_other_handler_err),
+        cmocka_unit_test(test_lurch_api_status_im_handler_disabled),
+        cmocka_unit_test(test_lurch_api_status_im_handler_not_supported),
+        cmocka_unit_test(test_lurch_api_status_im_handler_no_session),
+        cmocka_unit_test(test_lurch_api_status_im_handler_ok),
+        cmocka_unit_test(test_lurch_api_status_im_handler_err)
     };
 
     return cmocka_run_group_tests_name("lurch_api", tests, NULL, NULL);

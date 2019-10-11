@@ -166,14 +166,17 @@ $(BDIR)/test_lurch_util: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch
 $(BDIR)/test_lurch_api: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_api.o
 	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $^ $(PURPLE_DIR)/libjabber.so.0 -o $@ $(LDFLAGS_T) \
 	-Wl,--wrap=purple_account_get_username \
-	-Wl,--wrap=omemo_storage_user_devicelist_retrieve \
-	-Wl,--wrap=axc_get_device_id \
-	-Wl,--wrap=jabber_pep_publish \
 	-Wl,--wrap=purple_account_get_connection \
-	-Wl,--wrap=omemo_storage_chatlist_delete \
-	-Wl,--wrap=omemo_storage_chatlist_save \
+	-Wl,--wrap=jabber_pep_publish \
+	-Wl,--wrap=axc_get_device_id \
 	-Wl,--wrap=axc_key_load_public_own \
 	-Wl,--wrap=axc_key_load_public_addr \
+	-Wl,--wrap=axc_session_exists_any \
+	-Wl,--wrap=omemo_storage_user_devicelist_retrieve \
+	-Wl,--wrap=omemo_storage_chatlist_delete \
+	-Wl,--wrap=omemo_storage_chatlist_save \
+	-Wl,--wrap=omemo_storage_chatlist_exists \
+	-Wl,--wrap=omemo_storage_user_devicelist_retrieve \
 	-Wl,--wrap=lurch_util_fp_get_printable
 	bash -c "set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n'" # filter annoying and irrelevant glib output
 
