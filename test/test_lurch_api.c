@@ -30,6 +30,26 @@ int __wrap_omemo_storage_user_devicelist_retrieve(const char * user, const char 
     return ret_val;
 }
 
+void __wrap_purple_account_get_connection(PurpleAccount * acc_p) {
+    function_called();
+}
+
+void __wrap_purple_signal_register() {
+    function_called();
+}
+
+void __wrap_purple_signal_connect() {
+    function_called();
+}
+
+void __wrap_purple_signal_unregister() {
+    function_called();
+}
+
+void __wrap_purple_signal_disconnect() {
+    function_called();
+}
+
 int __wrap_axc_get_device_id(axc_context * ctx_p, uint32_t * id_p) {
     uint32_t id;
     int ret_val;
@@ -51,10 +71,6 @@ void __wrap_jabber_pep_publish(JabberStream * js_p, xmlnode * publish_node_p) {
     check_expected(device_id);
 
     check_expected_ptr(device_node_p->next);
-}
-
-void __wrap_purple_account_get_connection(PurpleAccount * acc_p) {
-    function_called();
 }
 
 int __wrap_omemo_storage_chatlist_delete(const char * chat, const char * db_fn) {
@@ -830,6 +846,39 @@ static void test_lurch_api_status_im_handler_err(void ** state) {
     lurch_api_status_im_handler(NULL, other_bare_jid, lurch_api_status_im_handler_cb_mock, mock_user_data);
 }
 
+/**
+ * Registers and connects all signals.
+ */
+static void test_lurch_api_init(void ** state) {
+    (void) state;
+
+    // currently, there are 8 signals
+    size_t signals = 8;
+
+    for (int i = 0; i < signals; i++) {
+        expect_function_call(__wrap_purple_signal_register);
+        expect_function_call(__wrap_purple_signal_connect);
+    }
+
+    lurch_api_init();
+}
+
+/**
+ * Disconnects and unregisters all signals.
+ */
+static void test_lurch_api_unload(void ** state) {
+    (void) state;
+
+    size_t signals = 8;
+
+    for (int i = 0; i < signals; i++) {
+        expect_function_call(__wrap_purple_signal_disconnect);
+        expect_function_call(__wrap_purple_signal_unregister);
+    }
+
+    lurch_api_unload();
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_lurch_api_id_list_handler),
@@ -852,7 +901,9 @@ int main(void) {
         cmocka_unit_test(test_lurch_api_status_im_handler_not_supported),
         cmocka_unit_test(test_lurch_api_status_im_handler_no_session),
         cmocka_unit_test(test_lurch_api_status_im_handler_ok),
-        cmocka_unit_test(test_lurch_api_status_im_handler_err)
+        cmocka_unit_test(test_lurch_api_status_im_handler_err),
+        cmocka_unit_test(test_lurch_api_init),
+        cmocka_unit_test(test_lurch_api_unload)
     };
 
     return cmocka_run_group_tests_name("lurch_api", tests, NULL, NULL);
