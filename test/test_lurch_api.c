@@ -289,7 +289,7 @@ static void test_lurch_api_id_remove_handler_id_not_in_list(void ** state) {
     lurch_api_id_remove_handler((void *) "ignored", 7331, lurch_api_id_remove_handler_cb_mock, test_user_data);
 }
 
-static void lurch_api_enable_im_handler_cb_mock(int32_t err, void * user_data_p) {
+static void lurch_api_enable_handler_cb_mock(int32_t err, void * user_data_p) {
     check_expected(err);
     check_expected(user_data_p);
 }
@@ -308,10 +308,10 @@ static void test_lurch_api_enable_im_handler(void ** state) {
     will_return(__wrap_omemo_storage_chatlist_delete, EXIT_SUCCESS);
 
     char * test_user_data = "TEST USER DATA";
-    expect_value(lurch_api_enable_im_handler_cb_mock, err, EXIT_SUCCESS);
-    expect_value(lurch_api_enable_im_handler_cb_mock, user_data_p, test_user_data);
+    expect_value(lurch_api_enable_handler_cb_mock, err, EXIT_SUCCESS);
+    expect_value(lurch_api_enable_handler_cb_mock, user_data_p, test_user_data);
 
-    lurch_api_enable_im_handler((void *) "ignored", contact_bare_jid, lurch_api_enable_im_handler_cb_mock, test_user_data);
+    lurch_api_enable_im_handler((void *) "ignored", contact_bare_jid, lurch_api_enable_handler_cb_mock, test_user_data);
 }
 
 /**
@@ -328,10 +328,50 @@ static void test_lurch_api_enable_im_handler_err(void ** state) {
     will_return(__wrap_omemo_storage_chatlist_delete, EXIT_FAILURE);
 
     char * test_user_data = "TEST USER DATA";
-    expect_value(lurch_api_enable_im_handler_cb_mock, err, EXIT_FAILURE);
-    expect_value(lurch_api_enable_im_handler_cb_mock, user_data_p, test_user_data);
+    expect_value(lurch_api_enable_handler_cb_mock, err, EXIT_FAILURE);
+    expect_value(lurch_api_enable_handler_cb_mock, user_data_p, test_user_data);
 
-    lurch_api_enable_im_handler((void *) "ignored", contact_bare_jid, lurch_api_enable_im_handler_cb_mock, test_user_data);
+    lurch_api_enable_im_handler((void *) "ignored", contact_bare_jid, lurch_api_enable_handler_cb_mock, test_user_data);
+}
+
+/**
+ * Adds conversation name to 'the list' to enable OMEMO for it.
+ */
+static void test_lurch_api_enable_chat_handler(void ** state) {
+    (void) state;
+
+    const char * conv_name = "conversation name";
+    const char * user_jid = "me-testing@test.org/resource";
+    will_return(__wrap_purple_account_get_username, user_jid);
+
+    expect_string(__wrap_omemo_storage_chatlist_save, chat, conv_name);
+    will_return(__wrap_omemo_storage_chatlist_save, EXIT_SUCCESS);
+
+    char * test_user_data = "TEST USER DATA";
+    expect_value(lurch_api_enable_handler_cb_mock, err, EXIT_SUCCESS);
+    expect_value(lurch_api_enable_handler_cb_mock, user_data_p, test_user_data);
+
+    lurch_api_enable_chat_handler((void *) "ignored", conv_name, lurch_api_enable_handler_cb_mock, test_user_data);
+}
+
+/**
+ * Calls the callback with the return value in case of an error.
+ */
+static void test_lurch_api_enable_chat_handler_err(void ** state) {
+    (void) state;
+
+    const char * conv_name = "conversation name";
+    const char * user_jid = "me-testing@test.org/resource";
+    will_return(__wrap_purple_account_get_username, user_jid);
+
+    expect_string(__wrap_omemo_storage_chatlist_save, chat, conv_name);
+    will_return(__wrap_omemo_storage_chatlist_save, EXIT_FAILURE);
+
+    char * test_user_data = "TEST USER DATA";
+    expect_value(lurch_api_enable_handler_cb_mock, err, EXIT_FAILURE);
+    expect_value(lurch_api_enable_handler_cb_mock, user_data_p, test_user_data);
+
+    lurch_api_enable_chat_handler((void *) "ignored", conv_name, lurch_api_enable_handler_cb_mock, test_user_data);
 }
 
 static void lurch_api_disable_im_handler_cb_mock(int32_t err, void * user_data_p) {
@@ -852,8 +892,8 @@ static void test_lurch_api_status_im_handler_err(void ** state) {
 static void test_lurch_api_init(void ** state) {
     (void) state;
 
-    // currently, there are 8 signals
-    size_t signals = 8;
+    // currently, there are 9 signals
+    size_t signals = 9;
 
     for (int i = 0; i < signals; i++) {
         expect_function_call(__wrap_purple_signal_register);
@@ -869,7 +909,7 @@ static void test_lurch_api_init(void ** state) {
 static void test_lurch_api_unload(void ** state) {
     (void) state;
 
-    size_t signals = 8;
+    size_t signals = 9;
 
     for (int i = 0; i < signals; i++) {
         expect_function_call(__wrap_purple_signal_disconnect);
@@ -887,6 +927,8 @@ int main(void) {
         cmocka_unit_test(test_lurch_api_id_remove_handler_id_not_in_list),
         cmocka_unit_test(test_lurch_api_enable_im_handler),
         cmocka_unit_test(test_lurch_api_enable_im_handler_err),
+        cmocka_unit_test(test_lurch_api_enable_chat_handler),
+        cmocka_unit_test(test_lurch_api_enable_chat_handler_err),
         cmocka_unit_test(test_lurch_api_disable_im_handler),
         cmocka_unit_test(test_lurch_api_disable_im_handler_err),
         cmocka_unit_test(test_lurch_api_fp_get_handler),

@@ -185,6 +185,26 @@ void lurch_api_disable_im_handler(PurpleAccount * acc_p, const char * contact_ba
   g_free(db_fn_omemo);
 }
 
+void lurch_api_enable_chat_handler(PurpleAccount * acc_p, const char * full_conversation_name, void (*cb)(int32_t err, void * user_data_p), void * user_data_p) {
+  int32_t ret_val = 0;
+  char * uname = (void *) 0;
+  char * db_fn_omemo = (void *) 0;
+
+  uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+
+  ret_val = omemo_storage_chatlist_save(full_conversation_name, db_fn_omemo);
+  if (ret_val) {
+    purple_debug_error(MODULE_NAME, "Failed to enable OMEMO for chat %s using DB %s.\n", full_conversation_name, db_fn_omemo);
+  }
+
+  cb(ret_val, user_data_p);
+
+  g_free(uname);
+  g_free(db_fn_omemo);
+}
+
+
 void lurch_api_fp_get_handler(PurpleAccount * acc_p, void (*cb)(int32_t err, const char * fp_printable, void * user_data_p), void * user_data_p) {
   int32_t ret_val = 0;
   char * uname = (void *) 0;
@@ -442,13 +462,14 @@ typedef enum {
  * When adding a new signal: increase this number and add the name, handler function, and handler function type
  * to the respective array.
  */
-#define NUM_OF_SIGNALS 8
+#define NUM_OF_SIGNALS 9
 
 const char * signal_names[NUM_OF_SIGNALS] = {
   "lurch-id-list",
   "lurch-id-remove",
   "lurch-enable-im",
   "lurch-disable-im",
+  "lurch-enable-chat",
   "lurch-fp-get",
   "lurch-fp-list",
   "lurch-fp-other",
@@ -460,6 +481,7 @@ const void * signal_handlers[NUM_OF_SIGNALS] = {
   lurch_api_id_remove_handler,
   lurch_api_enable_im_handler,
   lurch_api_disable_im_handler,
+  lurch_api_enable_chat_handler,
   lurch_api_fp_get_handler,
   lurch_api_fp_list_handler,
   lurch_api_fp_other_handler,
@@ -469,6 +491,7 @@ const void * signal_handlers[NUM_OF_SIGNALS] = {
 const lurch_api_handler_t signal_handler_types[NUM_OF_SIGNALS] = {
   LURCH_API_HANDLER_ACC_CB_DATA,
   LURCH_API_HANDLER_ACC_DID_CB_DATA,
+  LURCH_API_HANDLER_ACC_JID_CB_DATA,
   LURCH_API_HANDLER_ACC_JID_CB_DATA,
   LURCH_API_HANDLER_ACC_JID_CB_DATA,
   LURCH_API_HANDLER_ACC_CB_DATA,

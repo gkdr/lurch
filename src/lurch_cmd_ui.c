@@ -193,14 +193,26 @@ static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg, const ch
 }
 
 static void lurch_cmd_enable(PurpleConversation * conv_p) {
+  char * bare_jid = (void *) 0;
+  void * plugins_handle = purple_plugins_get_handle();
   PurpleConversationType conv_type = purple_conversation_get_type(conv_p);
-  char * conv_bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
+  PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
+  const char * conv_name = purple_conversation_get_name(conv_p);
 
-  if (conv_type == PURPLE_CONV_TYPE_IM) {
-    purple_signal_emit(purple_plugins_get_handle(), "lurch-enable-im", purple_conversation_get_account(conv_p), conv_bare_jid, lurch_enable_print, conv_p);
+  switch (conv_type) {
+  case PURPLE_CONV_TYPE_IM:
+    bare_jid = jabber_get_bare_jid(conv_name);
+    purple_signal_emit(plugins_handle, "lurch-enable-im", acc_p, bare_jid, lurch_enable_print, conv_p);
+    break;
+  case PURPLE_CONV_TYPE_CHAT:
+    purple_signal_emit(plugins_handle, "lurch-enable-chat", acc_p, conv_name, lurch_enable_print, conv_p);
+    break;
+  default:
+    lurch_cmd_print_err(conv_p, "Conversation type not supported.");
+    break;
   }
 
-  g_free(conv_bare_jid);
+  g_free(bare_jid);
 }
 
 static void lurch_cmd_disable(PurpleConversation * conv_p) {
