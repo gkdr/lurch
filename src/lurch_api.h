@@ -82,6 +82,13 @@ void lurch_api_disable_im_handler(PurpleAccount * acc_p, const char * contact_ba
 void lurch_api_enable_chat_handler(PurpleAccount * acc_p, const char * full_conversation_name, void (*cb)(int32_t err, void * user_data_p), void * user_data_p);
 
 /**
+ * SIGNAL: lurch-disable-chat
+ * 
+ * Disables OMEMO for the specified chat.
+ */
+void lurch_api_disable_chat_handler(PurpleAccount * acc_p, const char * full_conversation_name, void (*cb)(int32_t err, void * user_data_p), void * user_data_p);
+
+/**
  * SIGNAL: lurch-fp-get
  *
  * Gets the this device's fingerprint in a printable format.
