@@ -1,0 +1,15 @@
+Source: purple-lurch
+Section: unknown
+Priority: optional
+Maintainer: Olivier Mehani <shtrom+debian@ssji.net>
+Build-Depends: debhelper (>= 9)
+Standards-Version: 3.9.5
+Homepage: <insert the upstream URL, if relevant>
+#Vcs-Git: git://anonscm.debian.org/collab-maint/purple-lurch.git
+#Vcs-Browser: http://anonscm.debian.org/?p=collab-maint/purple-lurch.git;a=summary
+
+Package: purple-lurch
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: <insert up to 60 chars description>
+ <insert long description, indented with spaces>
