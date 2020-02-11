@@ -25,6 +25,10 @@ execute_before_dh_auto_configure:
 	test ! -e .git || (git submodule init && git submodule update)
 	test ! -e lib/axc/.git || (cd lib/axc; git submodule init && git submodule update)
 
+# Avoid failing on missing dependency info for libjabber
+override_dh_shlibdeps:
+	    dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info
+
 # debmake generated override targets
 # This is example for Cmake (See http://bugs.debian.org/641051 )
 #override_dh_auto_configure:
