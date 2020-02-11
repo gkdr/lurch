@@ -33,15 +33,15 @@ Below you can find the command to install the dependencies for popular distribut
 
 __Debian, Ubuntu__
 ``` bash
-sudo apt install git cmake libpurple-dev libmxml-dev libxml2-dev libsqlite3-dev libgcrypt20-dev build-essential
+sudo apt install git libpurple-dev libmxml-dev libxml2-dev libsqlite3-dev libgcrypt20-dev build-essential libcmocka-dev
 ```
 __ArchLinux, Parabola__
 ``` bash
-sudo pacman -S base-devel git cmake pidgin libpurple mxml libxml2 sqlite libgcrypt
+sudo pacman -S base-devel git pidgin libpurple mxml libxml2 sqlite libgcrypt
 ```
 __Fedora__
 ``` bash
-sudo dnf install git cmake libpurple-devel mxml-devel libxml2-devel libsqlite3x-devel libgcrypt-devel
+sudo dnf install git libpurple-devel mxml-devel libxml2-devel libsqlite3x-devel libgcrypt-devel
 ```
 
 ##### 2A. EITHER: Build and install from source
@@ -74,7 +74,7 @@ These instructions can also be found at the provided link.
 Homebrew should have all dependencies:
 
 ```
-brew install cmake pidgin glib libxml2 libmxml sqlite libgcrypt
+brew install pidgin glib libxml2 libmxml sqlite libgcrypt
 ```
 This should work on newer versions of MacOS, but if you run into problems check out [#8](https://github.com/gkdr/lurch/issues/8#issuecomment-285937828) for some hints. Complete instructions on how to get this running with Pidgin appreciated!
 
