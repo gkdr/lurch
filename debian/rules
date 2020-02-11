@@ -21,6 +21,10 @@ include /usr/share/dpkg/default.mk
 %:
 	dh $@ 
 
+execute_before_dh_auto_configure:
+	test ! -e .git || (git submodule init && git submodule update)
+	test ! -e lib/axc/.git || (cd lib/axc; git submodule init && git submodule update)
+
 # debmake generated override targets
 # This is example for Cmake (See http://bugs.debian.org/641051 )
 #override_dh_auto_configure:
