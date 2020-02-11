@@ -1,11 +1,14 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: purple-lurch
-Source: <url://example.com>
+Source: https://github.com/gkdr/lurch
 
 Files: *
-Copyright: <years> <put author's name and email here>
-           <years> <likewise for another author>
-License: GPL-3.0+
+Copyright: 2017--2020, Richard Bayerle <riba@firemail.cc>
+License: GPL-3.0
+
+Files: src/libomemo
+Copyright: 2017, Richard Bayerle <riba@firemail.cc>
+License: MIT
 
 Files: debian/*
 Copyright: 2020 Olivier Mehani <shtrom+debian@ssji.net>
