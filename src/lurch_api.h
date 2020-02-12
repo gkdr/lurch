@@ -12,6 +12,13 @@ typedef enum {
     LURCH_STATUS_OK             // OMEMO is supported and session exists
 } lurch_status_t;
 
+typedef enum {
+    LURCH_STATUS_CHAT_DISABLED = 0,  // OMEMO was not manually enabled
+    LURCH_STATUS_CHAT_ANONYMOUS,     // chat is anonymous, i.e. a member's JID could not be accessed
+    LURCH_STATUS_CHAT_NO_DEVICELIST, // a member's devicelist could not be accessed, probably because s/he is not a contact
+    LURCH_STATUS_CHAT_OK             // in theory, OMEMO should work
+} lurch_status_chat_t;
+
 /**
  * Initializes the API by registering the signals and signal handlers.
  */
@@ -118,3 +125,12 @@ void lurch_api_fp_other_handler(PurpleAccount * acc_p, const char * contact_bare
  * Checks the OMEMO status for the given contact. Result is one of lurch_status_t.
  */
 void lurch_api_status_im_handler(PurpleAccount * acc_p, const char * contact_bare_jid, void (*cb)(int32_t err, lurch_status_t status, void * user_data_p), void * user_data_p);
+
+/**
+ * SIGNAL: lurch-status-chat
+ * 
+ * Checks the OMEMO status for a MUC.
+ * It not only looks up whether OMEMO was enabled, but also checks the preconditions for this feature, i.e.
+ * whether all chat members' JIDs are visible (non-anonymous) and their devicelists accessible (in contact list). 
+ */
+void lurch_api_status_chat_handler(PurpleAccount * acc_p, const char * full_conversation_name, void (*cb)(int32_t err, lurch_status_chat_t status, void * user_data_p), void * user_data_p);

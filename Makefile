@@ -171,7 +171,9 @@ $(BDIR)/test_lurch_api: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_
 	-Wl,--wrap=purple_signal_unregister \
 	-Wl,--wrap=purple_signal_connect \
 	-Wl,--wrap=purple_signal_disconnect \
+	-Wl,--wrap=purple_find_conversation_with_account \
 	-Wl,--wrap=jabber_pep_publish \
+	-Wl,--wrap=jabber_chat_find_by_conv \
 	-Wl,--wrap=axc_get_device_id \
 	-Wl,--wrap=axc_key_load_public_own \
 	-Wl,--wrap=axc_key_load_public_addr \

@@ -175,6 +175,35 @@ void lurch_status_im_print(int32_t err, lurch_status_t status, void * user_data_
   lurch_cmd_print(conv_p, msg);
 }
 
+void lurch_status_chat_print(int32_t err, lurch_status_chat_t status, void * user_data_p) {
+  PurpleConversation * conv_p = (PurpleConversation *) user_data_p;
+  const char * msg = (void *) 0;
+
+  if (err) {
+    lurch_cmd_print_err(conv_p, "Failed to get the conversation status. Check the debug log for details.");
+    return;
+  }
+
+  switch (status) {
+    case LURCH_STATUS_CHAT_DISABLED:
+      msg = "OMEMO was not enabled for this conversation. Type '/lurch enable' to switch it on.";
+      break;
+    case LURCH_STATUS_CHAT_ANONYMOUS:
+      msg = "Could not access the JID of at least one of the chat members. The MUC is probably set to anonymous.";
+      break;
+    case LURCH_STATUS_CHAT_NO_DEVICELIST:
+      msg = "Could not access the OMEMO devicelist of at least one of the chat members. Make sure every member is in every other member's contact list.";
+      break;
+    case LURCH_STATUS_CHAT_OK:
+      msg = "OMEMO is enabled for this conversation and everything should work. You can turn it off by typing '/lurch disable'.";
+      break;
+    default:
+      msg = "Received unknown status code.";
+  }
+
+  lurch_cmd_print(conv_p, msg);
+}
+
 static void lurch_cmd_id(PurpleConversation * conv_p, const char * arg, const char * param) {
   PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
   void * plugins_handle = purple_plugins_get_handle();
@@ -257,14 +286,25 @@ static void lurch_cmd_fp(PurpleConversation * conv_p, const char * arg) {
 }
 
 static void lurch_cmd_status(PurpleConversation * conv_p) {
+  char * bare_jid = (void *) 0;
+  const char * conv_name = purple_conversation_get_name(conv_p);
   PurpleConversationType conv_type = purple_conversation_get_type(conv_p);
-  char * conv_bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
+  void * plugins_handle = purple_plugins_get_handle();
+  PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
 
-  if (conv_type == PURPLE_CONV_TYPE_IM) {
-    purple_signal_emit(purple_plugins_get_handle(), "lurch-status-im", purple_conversation_get_account(conv_p), conv_bare_jid, lurch_status_im_print ,conv_p);
+  switch (conv_type) {
+    case PURPLE_CONV_TYPE_IM:
+      bare_jid = jabber_get_bare_jid(conv_name);
+      purple_signal_emit(plugins_handle, "lurch-status-im", acc_p, bare_jid, lurch_status_im_print, conv_p);
+      break;
+    case PURPLE_CONV_TYPE_CHAT:
+      purple_signal_emit(plugins_handle, "lurch-status-chat", acc_p, conv_name, lurch_status_chat_print, conv_p);
+      break;
+    default:
+      lurch_cmd_print_err(conv_p, "Conversation type not supported.");
   }
 
-  g_free(conv_bare_jid);
+  g_free(bare_jid);
 }
 
 PurpleCmdRet lurch_cmd_func_v2(PurpleConversation * conv_p,

@@ -5,6 +5,7 @@
 
 #include <purple.h>
 #include "jabber.h"
+#include "chat.h"
 
 #include "axc.h"
 #include "libomemo.h"
@@ -62,6 +63,16 @@ int __wrap_axc_get_device_id(axc_context * ctx_p, uint32_t * id_p) {
     return ret_val;
 }
 
+PurpleConversation * __wrap_purple_find_conversation_with_account(PurpleConversationType type, const char *name,
+		const PurpleAccount *account) {
+    check_expected(type);
+    check_expected(name);
+
+    PurpleConversation * ret_val;
+    ret_val = mock_ptr_type(PurpleConversation *);
+    return ret_val;
+}
+
 void __wrap_jabber_pep_publish(JabberStream * js_p, xmlnode * publish_node_p) {
     xmlnode * item_node_p = xmlnode_get_child(publish_node_p, "item");
     xmlnode * list_node_p = xmlnode_get_child(item_node_p, "list");
@@ -71,6 +82,12 @@ void __wrap_jabber_pep_publish(JabberStream * js_p, xmlnode * publish_node_p) {
     check_expected(device_id);
 
     check_expected_ptr(device_node_p->next);
+}
+
+JabberChat * __wrap_jabber_chat_find_by_conv(PurpleConversation * conv_p) {
+    JabberChat * ret_val;
+    ret_val = mock_ptr_type(JabberChat *);
+    return ret_val;
 }
 
 int __wrap_omemo_storage_chatlist_delete(const char * chat, const char * db_fn) {
@@ -921,14 +938,189 @@ static void test_lurch_api_status_im_handler_err(void ** state) {
     lurch_api_status_im_handler(NULL, other_bare_jid, lurch_api_status_im_handler_cb_mock, mock_user_data);
 }
 
+static void lurch_api_status_chat_handler_cb_mock(int32_t err, lurch_status_chat_t status, void * user_data_p) {
+    check_expected(err);
+    check_expected(status);
+    check_expected(user_data_p);
+}
+
+/**
+ * Returns the "anonymous" status when a chat members' JID cannot be accessed, i.e. the chat is anonymous.
+ */
+static void test_lurch_api_status_chat_handler_anonymous(void ** state) {
+    (void) state;
+
+    const char * own_jid = "me-testing@test.org/resource";
+    const char * test_conversation_name = "test-room@conference.test.org";
+    will_return(__wrap_purple_account_get_username, own_jid);
+
+    PurpleConversation conversation_mock = {
+        .name = test_conversation_name
+    };
+
+    expect_value(__wrap_purple_find_conversation_with_account, type, PURPLE_CONV_TYPE_CHAT);
+    expect_value(__wrap_purple_find_conversation_with_account, name, test_conversation_name);
+    will_return(__wrap_purple_find_conversation_with_account, &conversation_mock);
+
+    JabberChatMember member = {
+        .handle = "anonymous member without jid"
+    };
+
+    // keys do not really matter as the tests function loops over the values
+    GHashTable * member_table_mock = g_hash_table_new(g_str_hash, g_str_equal);
+    g_hash_table_insert(member_table_mock, "anon member", &member);
+
+    JabberChat muc_mock = {
+        .members = member_table_mock
+    };
+
+    will_return(__wrap_jabber_chat_find_by_conv, &muc_mock);
+
+    expect_value(lurch_api_status_chat_handler_cb_mock, err, EXIT_SUCCESS);
+    expect_value(lurch_api_status_chat_handler_cb_mock, status, LURCH_STATUS_CHAT_ANONYMOUS);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
+
+    lurch_api_status_chat_handler(NULL, test_conversation_name, lurch_api_status_chat_handler_cb_mock, mock_user_data);
+}
+
+/**
+ * Returns the "no devicelist" status when a devicelist for a chat member can not be found.
+ * This usually means the member is not in the user's contact list.
+ */
+static void test_lurch_api_status_chat_handler_no_devicelist(void ** state) {
+    (void) state;
+
+    const char * own_jid = "me-testing@test.org/resource";
+    const char * test_conversation_name = "test-room@conference.test.org";
+    will_return(__wrap_purple_account_get_username, own_jid);
+
+    PurpleConversation conversation_mock = {
+        .name = test_conversation_name
+    };
+
+    expect_value(__wrap_purple_find_conversation_with_account, type, PURPLE_CONV_TYPE_CHAT);
+    expect_value(__wrap_purple_find_conversation_with_account, name, test_conversation_name);
+    will_return(__wrap_purple_find_conversation_with_account, &conversation_mock);
+
+    JabberChatMember member = {
+        .handle = "n0t4fr13nd",
+        .jid = "not-a-contact@test.org/phone"
+    };
+
+    // keys do not really matter as the tests function loops over the values
+    GHashTable * member_table_mock = g_hash_table_new(g_str_hash, g_str_equal);
+    g_hash_table_insert(member_table_mock, "non-contact member", &member);
+
+    JabberChat muc_mock = {
+        .members = member_table_mock
+    };
+
+    will_return(__wrap_jabber_chat_find_by_conv, &muc_mock);
+
+    char * devicelist = "<items node='urn:xmpp:omemo:0:devicelist'>"
+                            "<item>"
+                                "<list xmlns='urn:xmpp:omemo:0'>"
+                                "</list>"
+                            "</item>"
+                        "</items>";
+
+    omemo_devicelist * dl_p;
+    omemo_devicelist_import(devicelist, member.jid, &dl_p);
+    will_return(__wrap_omemo_storage_user_devicelist_retrieve, dl_p);
+    will_return(__wrap_omemo_storage_user_devicelist_retrieve, EXIT_SUCCESS);
+
+    expect_value(lurch_api_status_chat_handler_cb_mock, err, EXIT_SUCCESS);
+    expect_value(lurch_api_status_chat_handler_cb_mock, status, LURCH_STATUS_CHAT_NO_DEVICELIST);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
+
+    lurch_api_status_chat_handler(NULL, test_conversation_name, lurch_api_status_chat_handler_cb_mock, mock_user_data);    
+}
+
+/**
+ * Returns the "OK" status when for all members all necessary information could be found.
+ */
+static void test_lurch_api_status_chat_handler_ok(void ** state) {
+    (void) state;
+
+    const char * own_jid = "me-testing@test.org/resource";
+    const char * test_conversation_name = "test-room@conference.test.org";
+    will_return(__wrap_purple_account_get_username, own_jid);
+
+    PurpleConversation conversation_mock = {
+        .name = test_conversation_name
+    };
+
+    expect_value(__wrap_purple_find_conversation_with_account, type, PURPLE_CONV_TYPE_CHAT);
+    expect_value(__wrap_purple_find_conversation_with_account, name, test_conversation_name);
+    will_return(__wrap_purple_find_conversation_with_account, &conversation_mock);
+
+    JabberChatMember member = {
+        .handle = "perfect-contact",
+        .jid = "perfect-contact@test.org/lurch"
+    };
+
+    // keys do not really matter as the tests function loops over the values
+    GHashTable * member_table_mock = g_hash_table_new(g_str_hash, g_str_equal);
+    g_hash_table_insert(member_table_mock, "contact member", &member);
+
+    JabberChat muc_mock = {
+        .members = member_table_mock
+    };
+
+    will_return(__wrap_jabber_chat_find_by_conv, &muc_mock);
+
+    char * devicelist = "<items node='urn:xmpp:omemo:0:devicelist'>"
+                            "<item>"
+                                "<list xmlns='urn:xmpp:omemo:0'>"
+                                    "<device id='4223' />"
+                                "</list>"
+                            "</item>"
+                        "</items>";
+
+    omemo_devicelist * dl_p;
+    omemo_devicelist_import(devicelist, member.jid, &dl_p);
+    will_return(__wrap_omemo_storage_user_devicelist_retrieve, dl_p);
+    will_return(__wrap_omemo_storage_user_devicelist_retrieve, EXIT_SUCCESS);
+
+    expect_value(lurch_api_status_chat_handler_cb_mock, err, EXIT_SUCCESS);
+    expect_value(lurch_api_status_chat_handler_cb_mock, status, LURCH_STATUS_CHAT_OK);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
+
+    lurch_api_status_chat_handler(NULL, test_conversation_name, lurch_api_status_chat_handler_cb_mock, mock_user_data);    
+}
+
+/**
+ * Returns "disabled" and an error return value when the conversation could not be found, i.e. an error.
+ */
+static void test_lurch_api_status_chat_handler_conv_not_found(void ** state) {
+    (void) state;
+
+    const char * own_jid = "me-testing@test.org/resource";
+    const char * test_conversation_name = "nonexistent-test-room@conference.test.org";
+    will_return(__wrap_purple_account_get_username, own_jid);
+
+    expect_value(__wrap_purple_find_conversation_with_account, type, PURPLE_CONV_TYPE_CHAT);
+    expect_value(__wrap_purple_find_conversation_with_account, name, test_conversation_name);
+    will_return(__wrap_purple_find_conversation_with_account, NULL);
+
+    expect_value(lurch_api_status_chat_handler_cb_mock, err, EXIT_FAILURE);
+    expect_value(lurch_api_status_chat_handler_cb_mock, status, LURCH_STATUS_CHAT_DISABLED);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
+
+    lurch_api_status_chat_handler(NULL, test_conversation_name, lurch_api_status_chat_handler_cb_mock, mock_user_data);
+}
+
 /**
  * Registers and connects all signals.
  */
 static void test_lurch_api_init(void ** state) {
     (void) state;
 
-    // currently, there are 9 signals
-    size_t signals = 10;
+    size_t signals = 11;
 
     for (int i = 0; i < signals; i++) {
         expect_function_call(__wrap_purple_signal_register);
@@ -944,7 +1136,7 @@ static void test_lurch_api_init(void ** state) {
 static void test_lurch_api_unload(void ** state) {
     (void) state;
 
-    size_t signals = 10;
+    size_t signals = 11;
 
     for (int i = 0; i < signals; i++) {
         expect_function_call(__wrap_purple_signal_disconnect);
@@ -981,6 +1173,10 @@ int main(void) {
         cmocka_unit_test(test_lurch_api_status_im_handler_no_session),
         cmocka_unit_test(test_lurch_api_status_im_handler_ok),
         cmocka_unit_test(test_lurch_api_status_im_handler_err),
+        cmocka_unit_test(test_lurch_api_status_chat_handler_anonymous),
+        cmocka_unit_test(test_lurch_api_status_chat_handler_no_devicelist),
+        cmocka_unit_test(test_lurch_api_status_chat_handler_ok),
+        cmocka_unit_test(test_lurch_api_status_chat_handler_conv_not_found),
         cmocka_unit_test(test_lurch_api_init),
         cmocka_unit_test(test_lurch_api_unload)
     };

@@ -2,6 +2,7 @@
 #include <glib.h>
 #include <purple.h>
 
+#include "chat.h"
 #include "pep.h"
 
 #include "axc.h"
@@ -460,6 +461,89 @@ cleanup:
   axc_context_destroy_all(axc_ctx_p);
 }
 
+void lurch_api_status_chat_handler(PurpleAccount * acc_p, const char * full_conversation_name, void (*cb)(int32_t err, lurch_status_chat_t status, void * user_data_p), void * user_data_p) {
+  int32_t ret_val = 0;
+  lurch_status_chat_t status = LURCH_STATUS_CHAT_DISABLED;
+
+  char * uname = (void *) 0;
+  char * db_fn_omemo = (void *) 0;
+
+  PurpleConversation * conv_p = (void *) 0;
+  JabberChat * muc_p = (void *) 0;
+  GList * curr_item_p = (void *) 0;
+  JabberChatMember * curr_muc_member_p = (void *) 0;
+  char * curr_muc_member_bare_jid = (void *) 0;
+  omemo_devicelist * curr_dl_p = (void *) 0;
+
+  uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+
+  conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, full_conversation_name, acc_p);
+  if (!conv_p) {
+    purple_debug_error(MODULE_NAME, "Could not find groupchat %s.\n", full_conversation_name);
+    ret_val = EXIT_FAILURE;
+    goto cleanup;
+  }
+
+  muc_p = jabber_chat_find_by_conv(conv_p);
+  if (!muc_p) {
+    purple_debug_error(MODULE_NAME, "Could not find the data for groupchat %s.\n", full_conversation_name);
+    ret_val = EXIT_FAILURE;
+    goto cleanup;
+  }
+
+  for (curr_item_p = g_hash_table_get_values(muc_p->members); curr_item_p; curr_item_p = curr_item_p->next) {
+    curr_muc_member_p = (JabberChatMember *) curr_item_p->data;
+    curr_muc_member_bare_jid = jabber_get_bare_jid(curr_muc_member_p->jid);
+
+    if (!curr_muc_member_bare_jid) {
+      purple_debug_warning(
+        MODULE_NAME,
+        "Could not get the JID of chat member with handle %s, which probably means the chat is anonymous.\n",
+        curr_muc_member_p->handle
+      );
+
+      status = LURCH_STATUS_CHAT_ANONYMOUS;
+      goto cleanup;
+    }
+
+    ret_val = omemo_storage_user_devicelist_retrieve(curr_muc_member_bare_jid, db_fn_omemo, &curr_dl_p);
+    if (ret_val) {
+      purple_debug_error(MODULE_NAME, "Could not retrieve the devicelist for %s from %s.\n", curr_muc_member_bare_jid, db_fn_omemo);
+      goto cleanup;
+    }
+
+    if (omemo_devicelist_is_empty(curr_dl_p)) {
+      purple_debug_warning(
+        MODULE_NAME,
+        "Could not find %s's devicelist in chat %s. The user is probably not in %s's contact list.\n",
+        curr_muc_member_bare_jid, full_conversation_name, uname
+      );
+
+      status = LURCH_STATUS_CHAT_NO_DEVICELIST;
+      goto cleanup;
+    }
+
+
+    g_free(curr_muc_member_bare_jid);
+    curr_muc_member_bare_jid = (void *) 0;
+
+    omemo_devicelist_destroy(curr_dl_p);
+    curr_dl_p = (void *) 0;
+  }
+
+  status = LURCH_STATUS_CHAT_OK;
+
+cleanup:
+  cb(ret_val, status, user_data_p);
+
+  g_free(uname);
+  g_free(db_fn_omemo);
+  // if loop was exited early
+  g_free(curr_muc_member_bare_jid);
+  omemo_devicelist_destroy(curr_dl_p);
+}
+
 static void lurch_api_marshal_VOID__POINTER_INT_POINTER_POINTER(PurpleCallback cb, va_list args, void * data, void ** return_val) {
 	void * arg1 = va_arg(args, void *);
 	gint32 arg2 = va_arg(args, guint);
@@ -480,7 +564,7 @@ typedef enum {
  * When adding a new signal: increase this number and add the name, handler function, and handler function type
  * to the respective array.
  */
-#define NUM_OF_SIGNALS 10
+#define NUM_OF_SIGNALS 11
 
 const char * signal_names[NUM_OF_SIGNALS] = {
   "lurch-id-list",
