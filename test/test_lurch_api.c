@@ -945,6 +945,27 @@ static void lurch_api_status_chat_handler_cb_mock(int32_t err, lurch_status_chat
 }
 
 /**
+ * Returns the 'disabled' status if the chat is not on 'the list'.
+ */
+static void test_lurch_api_status_chat_handler_disabled(void ** state) {
+    (void) state;
+
+    const char * own_jid = "me-testing@test.org/resource";
+    const char * test_conversation_name = "test-room@conference.test.org";
+    will_return(__wrap_purple_account_get_username, own_jid);
+
+    expect_value(__wrap_omemo_storage_chatlist_exists, chat, test_conversation_name);
+    will_return(__wrap_omemo_storage_chatlist_exists, 0);
+
+    expect_value(lurch_api_status_chat_handler_cb_mock, err, EXIT_SUCCESS);
+    expect_value(lurch_api_status_chat_handler_cb_mock, status, LURCH_STATUS_CHAT_DISABLED);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
+
+    lurch_api_status_chat_handler(NULL, test_conversation_name, lurch_api_status_chat_handler_cb_mock, mock_user_data);
+}
+
+/**
  * Returns the "anonymous" status when a chat members' JID cannot be accessed, i.e. the chat is anonymous.
  */
 static void test_lurch_api_status_chat_handler_anonymous(void ** state) {
@@ -953,6 +974,9 @@ static void test_lurch_api_status_chat_handler_anonymous(void ** state) {
     const char * own_jid = "me-testing@test.org/resource";
     const char * test_conversation_name = "test-room@conference.test.org";
     will_return(__wrap_purple_account_get_username, own_jid);
+
+    expect_value(__wrap_omemo_storage_chatlist_exists, chat, test_conversation_name);
+    will_return(__wrap_omemo_storage_chatlist_exists, 1);
 
     PurpleConversation conversation_mock = {
         .name = test_conversation_name
@@ -994,6 +1018,9 @@ static void test_lurch_api_status_chat_handler_no_devicelist(void ** state) {
     const char * own_jid = "me-testing@test.org/resource";
     const char * test_conversation_name = "test-room@conference.test.org";
     will_return(__wrap_purple_account_get_username, own_jid);
+
+    expect_value(__wrap_omemo_storage_chatlist_exists, chat, test_conversation_name);
+    will_return(__wrap_omemo_storage_chatlist_exists, 1);
 
     PurpleConversation conversation_mock = {
         .name = test_conversation_name
@@ -1048,6 +1075,9 @@ static void test_lurch_api_status_chat_handler_ok(void ** state) {
     const char * test_conversation_name = "test-room@conference.test.org";
     will_return(__wrap_purple_account_get_username, own_jid);
 
+    expect_value(__wrap_omemo_storage_chatlist_exists, chat, test_conversation_name);
+    will_return(__wrap_omemo_storage_chatlist_exists, 1);
+
     PurpleConversation conversation_mock = {
         .name = test_conversation_name
     };
@@ -1101,6 +1131,9 @@ static void test_lurch_api_status_chat_handler_conv_not_found(void ** state) {
     const char * own_jid = "me-testing@test.org/resource";
     const char * test_conversation_name = "nonexistent-test-room@conference.test.org";
     will_return(__wrap_purple_account_get_username, own_jid);
+
+    expect_value(__wrap_omemo_storage_chatlist_exists, chat, test_conversation_name);
+    will_return(__wrap_omemo_storage_chatlist_exists, 1);
 
     expect_value(__wrap_purple_find_conversation_with_account, type, PURPLE_CONV_TYPE_CHAT);
     expect_value(__wrap_purple_find_conversation_with_account, name, test_conversation_name);
@@ -1173,6 +1206,7 @@ int main(void) {
         cmocka_unit_test(test_lurch_api_status_im_handler_no_session),
         cmocka_unit_test(test_lurch_api_status_im_handler_ok),
         cmocka_unit_test(test_lurch_api_status_im_handler_err),
+        cmocka_unit_test(test_lurch_api_status_chat_handler_disabled),
         cmocka_unit_test(test_lurch_api_status_chat_handler_anonymous),
         cmocka_unit_test(test_lurch_api_status_chat_handler_no_devicelist),
         cmocka_unit_test(test_lurch_api_status_chat_handler_ok),

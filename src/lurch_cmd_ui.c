@@ -26,7 +26,7 @@ static void lurch_cmd_help(PurpleConversation * conv_p) {
     " - '/lurch fp show': Displays this device's key fingerprint.\n"
     " - '/lurch fp list': Displays the fingerprints of all your devices.\n"
     " - '/lurch fp other': Displays the fingerprints of all of your conversation partner's devices.\n"
-    " - '/lurch status': Shows the OMEMO status of this conversation.\n"
+    " - '/lurch status': Shows the OMEMO status of this conversation from your point of view.\n"
     " - '/lurch help': Displays this message.\n"
     " - '/lurch uninstall': Uninstalls this device from OMEMO by removing its device ID from the devicelist.";
 

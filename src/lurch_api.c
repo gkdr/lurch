@@ -478,6 +478,19 @@ void lurch_api_status_chat_handler(PurpleAccount * acc_p, const char * full_conv
   uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
   db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
 
+  ret_val = omemo_storage_chatlist_exists(full_conversation_name, db_fn_omemo);
+  if (ret_val < 0 || ret_val > 1) {
+    purple_debug_error(MODULE_NAME, "Failed to look up %s in file %s.", full_conversation_name, db_fn_omemo);
+    goto cleanup;
+  } else if (ret_val == 0) {
+    ret_val = 0;
+    status = LURCH_STATUS_CHAT_DISABLED;
+    goto cleanup;
+  } else if (ret_val == 1) {
+    // omemo enabled for chat, continue
+    ret_val = 0;
+  }
+
   conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, full_conversation_name, acc_p);
   if (!conv_p) {
     purple_debug_error(MODULE_NAME, "Could not find groupchat %s.\n", full_conversation_name);
@@ -553,65 +566,88 @@ static void lurch_api_marshal_VOID__POINTER_INT_POINTER_POINTER(PurpleCallback c
 	((void (*)(void *, guint, void *, void *, void *))cb)(arg1, arg2, arg3, arg4, data);
 }
 
-
 typedef enum {
   LURCH_API_HANDLER_ACC_CB_DATA = 0,
   LURCH_API_HANDLER_ACC_JID_CB_DATA,
   LURCH_API_HANDLER_ACC_DID_CB_DATA
 } lurch_api_handler_t;
 
-/**
- * When adding a new signal: increase this number and add the name, handler function, and handler function type
- * to the respective array.
- */
-#define NUM_OF_SIGNALS 11
+typedef struct {
+  const char * name;
+  void * handler;
+  lurch_api_handler_t handler_type;
+} lurch_signal_info;
 
-const char * signal_names[NUM_OF_SIGNALS] = {
-  "lurch-id-list",
-  "lurch-id-remove",
-  "lurch-enable-im",
-  "lurch-disable-im",
-  "lurch-enable-chat",
-  "lurch-disable-chat",
-  "lurch-fp-get",
-  "lurch-fp-list",
-  "lurch-fp-other",
-  "lurch-status-im"
+const lurch_signal_info signal_infos[] = {
+  {
+    .name = "lurch-id-list",
+    .handler = lurch_api_id_list_handler,
+    .handler_type = LURCH_API_HANDLER_ACC_CB_DATA,
+  },
+  {
+    .name = "lurch-id-remove",
+    .handler = lurch_api_id_remove_handler,
+    .handler_type = LURCH_API_HANDLER_ACC_DID_CB_DATA,
+  },
+  {
+    .name = "lurch-enable-im",
+    .handler = lurch_api_enable_im_handler,
+    .handler_type = LURCH_API_HANDLER_ACC_JID_CB_DATA,
+  },
+  {
+    .name = "lurch-disable-im",
+    .handler = lurch_api_disable_im_handler,
+    .handler_type = LURCH_API_HANDLER_ACC_JID_CB_DATA,
+  },
+  {
+    .name = "lurch-enable-chat",
+    .handler = lurch_api_enable_chat_handler,
+    .handler_type = LURCH_API_HANDLER_ACC_JID_CB_DATA,
+  },
+  {
+    .name = "lurch-disable-chat",
+    .handler = lurch_api_disable_chat_handler,
+    .handler_type = LURCH_API_HANDLER_ACC_JID_CB_DATA,
+  },
+  {
+    .name = "lurch-fp-get",
+    .handler = lurch_api_fp_get_handler,
+    .handler_type = LURCH_API_HANDLER_ACC_CB_DATA,
+  },
+  {
+    .name = "lurch-fp-list",
+    .handler = lurch_api_fp_list_handler,
+    .handler_type = LURCH_API_HANDLER_ACC_CB_DATA,
+  },
+  {
+    .name = "lurch-fp-other",
+    .handler = lurch_api_fp_other_handler,
+    .handler_type = LURCH_API_HANDLER_ACC_JID_CB_DATA,
+  },
+  {
+    .name = "lurch-status-im",
+    .handler = lurch_api_status_im_handler,
+    .handler_type = LURCH_API_HANDLER_ACC_JID_CB_DATA,
+  },
+  {
+    .name = "lurch-status-chat",
+    .handler = lurch_api_status_chat_handler,
+    .handler_type = LURCH_API_HANDLER_ACC_JID_CB_DATA,
+  },
 };
 
-const void * signal_handlers[NUM_OF_SIGNALS] = {
-  lurch_api_id_list_handler,
-  lurch_api_id_remove_handler,
-  lurch_api_enable_im_handler,
-  lurch_api_disable_im_handler,
-  lurch_api_enable_chat_handler,
-  lurch_api_disable_chat_handler,
-  lurch_api_fp_get_handler,
-  lurch_api_fp_list_handler,
-  lurch_api_fp_other_handler,
-  lurch_api_status_im_handler
-};
-
-const lurch_api_handler_t signal_handler_types[NUM_OF_SIGNALS] = {
-  LURCH_API_HANDLER_ACC_CB_DATA,
-  LURCH_API_HANDLER_ACC_DID_CB_DATA,
-  LURCH_API_HANDLER_ACC_JID_CB_DATA,
-  LURCH_API_HANDLER_ACC_JID_CB_DATA,
-  LURCH_API_HANDLER_ACC_JID_CB_DATA,
-  LURCH_API_HANDLER_ACC_JID_CB_DATA,
-  LURCH_API_HANDLER_ACC_CB_DATA,
-  LURCH_API_HANDLER_ACC_CB_DATA,
-  LURCH_API_HANDLER_ACC_JID_CB_DATA,
-  LURCH_API_HANDLER_ACC_JID_CB_DATA
-};
+static int get_num_of_signals() {
+  return (sizeof signal_infos) / (sizeof signal_infos[0]);
+}
 
 void lurch_api_init() {
   void * plugins_handle_p = purple_plugins_get_handle();
 
-  for (int i = 0; i < NUM_OF_SIGNALS; i++) {
-    const char * signal_name = signal_names[i];
+  for (int i = 0; i < get_num_of_signals(); i++) {
+    lurch_signal_info signal_info = signal_infos[i];
+    const char * signal_name = signal_info.name;
 
-    switch (signal_handler_types[i]) {
+    switch (signal_info.handler_type) {
       case LURCH_API_HANDLER_ACC_CB_DATA:
         purple_signal_register(
           plugins_handle_p,
@@ -658,7 +694,7 @@ void lurch_api_init() {
       plugins_handle_p,
       signal_name,
       MODULE_NAME,
-      PURPLE_CALLBACK(signal_handlers[i]),
+      PURPLE_CALLBACK(signal_info.handler),
       NULL
     );
   }
@@ -667,14 +703,15 @@ void lurch_api_init() {
 void lurch_api_unload() {
   void * plugins_handle_p = purple_plugins_get_handle();
 
-  for (int i = 0; i < NUM_OF_SIGNALS; i++) {
-    const char * signal_name = signal_names[i];
+  for (int i = 0; i < get_num_of_signals(); i++) {
+    lurch_signal_info signal_info = signal_infos[i];
+    const char * signal_name = signal_info.name;
 
     purple_signal_disconnect(
       plugins_handle_p,
       signal_name,
       MODULE_NAME,
-      PURPLE_CALLBACK(signal_handlers[i])
+      PURPLE_CALLBACK(signal_info.handler)
     );
 
     purple_signal_unregister(plugins_handle_p, signal_name);
