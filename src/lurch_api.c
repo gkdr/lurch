@@ -560,13 +560,7 @@ typedef enum {
   LURCH_API_HANDLER_ACC_DID_CB_DATA
 } lurch_api_handler_t;
 
-/**
- * When adding a new signal: increase this number and add the name, handler function, and handler function type
- * to the respective array.
- */
-#define NUM_OF_SIGNALS 11
-
-const char * signal_names[NUM_OF_SIGNALS] = {
+const char * signal_names[] = {
   "lurch-id-list",
   "lurch-id-remove",
   "lurch-enable-im",
@@ -579,7 +573,7 @@ const char * signal_names[NUM_OF_SIGNALS] = {
   "lurch-status-im"
 };
 
-const void * signal_handlers[NUM_OF_SIGNALS] = {
+const void * signal_handlers[] = {
   lurch_api_id_list_handler,
   lurch_api_id_remove_handler,
   lurch_api_enable_im_handler,
@@ -592,7 +586,7 @@ const void * signal_handlers[NUM_OF_SIGNALS] = {
   lurch_api_status_im_handler
 };
 
-const lurch_api_handler_t signal_handler_types[NUM_OF_SIGNALS] = {
+const lurch_api_handler_t signal_handler_types[] = {
   LURCH_API_HANDLER_ACC_CB_DATA,
   LURCH_API_HANDLER_ACC_DID_CB_DATA,
   LURCH_API_HANDLER_ACC_JID_CB_DATA,
@@ -605,10 +599,13 @@ const lurch_api_handler_t signal_handler_types[NUM_OF_SIGNALS] = {
   LURCH_API_HANDLER_ACC_JID_CB_DATA
 };
 
+G_STATIC_ASSERT (G_N_ELEMENTS(signal_names) == G_N_ELEMENTS(signal_handlers));
+G_STATIC_ASSERT (G_N_ELEMENTS(signal_names) == G_N_ELEMENTS(signal_handler_types));
+
 void lurch_api_init() {
   void * plugins_handle_p = purple_plugins_get_handle();
 
-  for (int i = 0; i < NUM_OF_SIGNALS; i++) {
+  for (int i = 0; i < G_N_ELEMENTS(signal_names); i++) {
     const char * signal_name = signal_names[i];
 
     switch (signal_handler_types[i]) {
@@ -667,7 +664,7 @@ void lurch_api_init() {
 void lurch_api_unload() {
   void * plugins_handle_p = purple_plugins_get_handle();
 
-  for (int i = 0; i < NUM_OF_SIGNALS; i++) {
+  for (int i = 0; i < G_N_ELEMENTS(signal_names); i++) {
     const char * signal_name = signal_names[i];
 
     purple_signal_disconnect(
