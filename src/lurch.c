@@ -1806,7 +1806,11 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     goto cleanup;
   }
   if (!key_p) {
+    const char *to = room_name ?: sender;
+
     purple_debug_info("lurch", "received omemo message that does not contain a key for this device, skipping\n");
+    purple_conv_present_error(to, purple_connection_get_account(gc_p),
+			      "Received omemo message that does not contain a key for this device");
     goto cleanup;
   }
 
