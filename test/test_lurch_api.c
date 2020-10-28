@@ -31,8 +31,9 @@ int __wrap_omemo_storage_user_devicelist_retrieve(const char * user, const char 
     return ret_val;
 }
 
-void __wrap_purple_account_get_connection(PurpleAccount * acc_p) {
+void *__wrap_purple_account_get_connection(PurpleAccount * acc_p) {
     function_called();
+    return NULL;
 }
 
 void __wrap_purple_signal_register() {
