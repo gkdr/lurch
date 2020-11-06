@@ -31,8 +31,9 @@ int __wrap_omemo_storage_user_devicelist_retrieve(const char * user, const char 
     return ret_val;
 }
 
-void __wrap_purple_account_get_connection(PurpleAccount * acc_p) {
+void *__wrap_purple_account_get_connection(PurpleAccount * acc_p) {
     function_called();
+    return NULL;
 }
 
 void __wrap_purple_signal_register() {
@@ -247,6 +248,7 @@ static void lurch_api_id_remove_handler_cb_mock(int32_t err, void * user_data_p)
  */
 static void test_lurch_api_id_remove_handler(void ** state) {
     (void) state;
+    PurpleAccount p = { 0 };
 
     const char * test_jid = "me-testing@test.org/resource";
     will_return(__wrap_purple_account_get_username, test_jid);
@@ -273,7 +275,7 @@ static void test_lurch_api_id_remove_handler(void ** state) {
     expect_value(lurch_api_id_remove_handler_cb_mock, err, EXIT_SUCCESS);
     expect_value(lurch_api_id_remove_handler_cb_mock, user_data_p, test_user_data);
 
-    lurch_api_id_remove_handler((void *) "ignored", 1337, lurch_api_id_remove_handler_cb_mock, test_user_data);
+    lurch_api_id_remove_handler(&p, 1337, lurch_api_id_remove_handler_cb_mock, test_user_data);
 }
 
 /**
