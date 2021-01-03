@@ -189,7 +189,7 @@ void lurch_status_chat_print(int32_t err, lurch_status_chat_t status, void * use
       msg = "OMEMO was not enabled for this conversation. Type '/lurch enable' to switch it on.";
       break;
     case LURCH_STATUS_CHAT_ANONYMOUS:
-      msg = "Could not access the JID of at least one of the chat members. The MUC is probably set to anonymous.";
+      msg = "The MUC is set to anonymous, which means that the members' JIDs are inaccessible and OMEMO will not work. Ask a moderator to change this.";
       break;
     case LURCH_STATUS_CHAT_NO_DEVICELIST:
       msg = "Could not access the OMEMO devicelist of at least one of the chat members. Make sure every member is in every other member's contact list.";

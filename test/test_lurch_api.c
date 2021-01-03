@@ -11,6 +11,7 @@
 #include "libomemo.h"
 
 #include "../src/lurch_api.h"
+#include "../src/lurch_api_internal.h"
 
 char * __wrap_purple_account_get_username(PurpleAccount * acc_p) {
     char * username;
@@ -34,6 +35,14 @@ int __wrap_omemo_storage_user_devicelist_retrieve(const char * user, const char 
 void *__wrap_purple_account_get_connection(PurpleAccount * acc_p) {
     function_called();
     return NULL;
+}
+
+void * __wrap_purple_connection_get_protocol_data(const PurpleConnection * connection_p) {
+    JabberStream * js_p;
+
+    js_p = mock_ptr_type(JabberStream *);
+
+    return js_p;
 }
 
 void __wrap_purple_signal_register() {
@@ -89,6 +98,23 @@ JabberChat * __wrap_jabber_chat_find_by_conv(PurpleConversation * conv_p) {
     JabberChat * ret_val;
     ret_val = mock_ptr_type(JabberChat *);
     return ret_val;
+}
+
+void __wrap_jabber_iq_send(JabberIq *iq) {
+    function_called();
+
+    assert_int_equal(iq->type, JABBER_IQ_GET);
+    assert_non_null(xmlnode_get_child_with_namespace(iq->node, "query", "http://jabber.org/protocol/disco#info"));
+
+    lurch_api_status_chat_cb_data * cb_data_p = iq->callback_data;
+    void * cb = cb_data_p->cb;
+    check_expected_ptr(cb);
+
+    void * user_data_p = cb_data_p->user_data_p;
+    check_expected_ptr(user_data_p);
+
+    const char * to = xmlnode_get_attrib(iq->node, "to");
+    check_expected(to);
 }
 
 int __wrap_omemo_storage_chatlist_delete(const char * chat, const char * db_fn) {
@@ -268,6 +294,7 @@ static void test_lurch_api_id_remove_handler(void ** state) {
     will_return(__wrap_omemo_storage_user_devicelist_retrieve, EXIT_SUCCESS);
 
     expect_function_call(__wrap_purple_account_get_connection);
+    will_return(__wrap_purple_connection_get_protocol_data, NULL);
     expect_string(__wrap_jabber_pep_publish, device_id, "4223");
     expect_value(__wrap_jabber_pep_publish, device_node_p->next, NULL);
 
@@ -947,7 +974,7 @@ static void lurch_api_status_chat_handler_cb_mock(int32_t err, lurch_status_chat
 }
 
 /**
- * Returns the 'disabled' status if the chat is not on 'the list'.
+ * Returns the 'disabled' status if the chat is not on 'the list' and does not send a query.
  */
 static void test_lurch_api_status_chat_handler_disabled(void ** state) {
     (void) state;
@@ -965,12 +992,14 @@ static void test_lurch_api_status_chat_handler_disabled(void ** state) {
     expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
 
     lurch_api_status_chat_handler(NULL, test_conversation_name, lurch_api_status_chat_handler_cb_mock, mock_user_data);
+
+    // does not expect a jabber_iq_send, so cmocka would fail if there was one
 }
 
 /**
- * Returns the "anonymous" status when a chat members' JID cannot be accessed, i.e. the chat is anonymous.
+ * If OMEMO is enabled for a chat, the server must be queried to correctly determine the status.
  */
-static void test_lurch_api_status_chat_handler_anonymous(void ** state) {
+static void test_lurch_api_status_chat_handler_enabled(void ** state) {
     (void) state;
 
     const char * own_jid = "me-testing@test.org/resource";
@@ -980,57 +1009,108 @@ static void test_lurch_api_status_chat_handler_anonymous(void ** state) {
     expect_value(__wrap_omemo_storage_chatlist_exists, chat, test_conversation_name);
     will_return(__wrap_omemo_storage_chatlist_exists, 1);
 
-    PurpleConversation conversation_mock = {
-        .name = test_conversation_name
-    };
+    expect_function_call(__wrap_purple_account_get_connection);
+    JabberStream fake_js = {.next_id = 1}; // needed so an iq can be created
+    will_return(__wrap_purple_connection_get_protocol_data, &fake_js); 
 
-    expect_value(__wrap_purple_find_conversation_with_account, type, PURPLE_CONV_TYPE_CHAT);
-    expect_value(__wrap_purple_find_conversation_with_account, name, test_conversation_name);
-    will_return(__wrap_purple_find_conversation_with_account, &conversation_mock);
+    expect_function_call(__wrap_jabber_iq_send);
+    expect_value(__wrap_jabber_iq_send, cb, lurch_api_status_chat_handler_cb_mock);
+    expect_string(__wrap_jabber_iq_send, to, test_conversation_name);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(__wrap_jabber_iq_send, user_data_p, mock_user_data);
 
-    JabberChatMember member = {
-        .handle = "anonymous member without jid"
-    };
+    lurch_api_status_chat_handler(NULL, test_conversation_name, lurch_api_status_chat_handler_cb_mock, mock_user_data);
+}
 
-    // keys do not really matter as the tests function loops over the values
-    GHashTable * member_table_mock = g_hash_table_new(g_str_hash, g_str_equal);
-    g_hash_table_insert(member_table_mock, "anon member", &member);
+/**
+ * Return the "anonymous" status if the returned features do not contain "muc_nonanomyous".
+ */
+static void test_lurch_api_status_chat_discover_cb_anonymous(void ** state) {
+    (void) state;
 
-    JabberChat muc_mock = {
-        .members = member_table_mock
-    };
-
-    will_return(__wrap_jabber_chat_find_by_conv, &muc_mock);
+    // from the XEP-0045 (MUC), example 9, minus the "nonanonymous"
+    const char * disco_info_result =
+        "<iq from='coven@chat.shakespeare.lit' "
+                "id='ik3vs715' "
+                "to='hag66@shakespeare.lit/pda' "
+                "type='result'>"
+            "<query xmlns='http://jabber.org/protocol/disco#info'>"
+                "<identity "
+                    "category='conference' "
+                    "name='A Dark Cave' "
+                    "type='text'/>"
+                "<feature var='http://jabber.org/protocol/muc'/>"
+                "<feature var='http://jabber.org/protocol/muc#stable_id'/>"
+                "<feature var='muc_passwordprotected'/>"
+                "<feature var='muc_hidden'/>"
+                "<feature var='muc_temporary'/>"
+                "<feature var='muc_open'/>"
+                "<feature var='muc_unmoderated'/>"
+            "</query>"
+        "</iq>";
+    xmlnode * disco_info_node = xmlnode_from_str(disco_info_result, -1);
 
     expect_value(lurch_api_status_chat_handler_cb_mock, err, EXIT_SUCCESS);
     expect_value(lurch_api_status_chat_handler_cb_mock, status, LURCH_STATUS_CHAT_ANONYMOUS);
     const char * mock_user_data = "MOCK_USER_DATA";
     expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
 
-    lurch_api_status_chat_handler(NULL, test_conversation_name, lurch_api_status_chat_handler_cb_mock, mock_user_data);
+    lurch_api_status_chat_cb_data * cb_data = g_malloc0(sizeof(lurch_api_status_chat_cb_data));
+    cb_data->cb = lurch_api_status_chat_handler_cb_mock;
+    cb_data->user_data_p = mock_user_data;
+
+    lurch_api_status_chat_discover_cb(NULL, "does not matter", JABBER_IQ_RESULT, "does not matter", disco_info_node, cb_data);
 }
 
 /**
- * Returns the "no devicelist" status when a devicelist for a chat member can not be found.
- * This usually means the member is not in the user's contact list.
+ * Return the "no devicelist" status if one of the chat members' devcelists is empty.
  */
-static void test_lurch_api_status_chat_handler_no_devicelist(void ** state) {
+static void test_lurch_api_status_chat_discover_cb_no_devicelist(void ** state) {
     (void) state;
 
-    const char * own_jid = "me-testing@test.org/resource";
-    const char * test_conversation_name = "test-room@conference.test.org";
-    will_return(__wrap_purple_account_get_username, own_jid);
+    // from the XEP-0045 (MUC), example 9
+    const char * disco_info_result =
+        "<iq from='coven@chat.shakespeare.lit' "
+                "id='ik3vs715' "
+                "to='hag66@shakespeare.lit/pda' "
+                "type='result'>"
+            "<query xmlns='http://jabber.org/protocol/disco#info'>"
+                "<identity "
+                    "category='conference' "
+                    "name='A Dark Cave' "
+                    "type='text'/>"
+                "<feature var='http://jabber.org/protocol/muc'/>"
+                "<feature var='http://jabber.org/protocol/muc#stable_id'/>"
+                "<feature var='muc_passwordprotected'/>"
+                "<feature var='muc_hidden'/>"
+                "<feature var='muc_temporary'/>"
+                "<feature var='muc_open'/>"
+                "<feature var='muc_unmoderated'/>"
+                "<feature var='muc_nonanonymous'/>"
+            "</query>"
+        "</iq>";
+    xmlnode * disco_info_node = xmlnode_from_str(disco_info_result, -1);
 
-    expect_value(__wrap_omemo_storage_chatlist_exists, chat, test_conversation_name);
-    will_return(__wrap_omemo_storage_chatlist_exists, 1);
+    expect_value(lurch_api_status_chat_handler_cb_mock, err, EXIT_SUCCESS);
+    expect_value(lurch_api_status_chat_handler_cb_mock, status, LURCH_STATUS_CHAT_NO_DEVICELIST);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
 
-    PurpleConversation conversation_mock = {
-        .name = test_conversation_name
+    lurch_api_status_chat_cb_data * cb_data = g_malloc0(sizeof(lurch_api_status_chat_cb_data));
+    cb_data->cb = lurch_api_status_chat_handler_cb_mock;
+    cb_data->user_data_p = mock_user_data;
+
+    PurpleConnection gc_fake = {
+        .account = NULL
+    };
+    JabberStream js_fake = {
+        .gc = &gc_fake
     };
 
-    expect_value(__wrap_purple_find_conversation_with_account, type, PURPLE_CONV_TYPE_CHAT);
-    expect_value(__wrap_purple_find_conversation_with_account, name, test_conversation_name);
-    will_return(__wrap_purple_find_conversation_with_account, &conversation_mock);
+    const char * test_conversation_name = "test-room@conference.test.org";
+    PurpleConversation conversation_fake = {
+        .name = test_conversation_name
+    };
 
     JabberChatMember member = {
         .handle = "n0t4fr13nd",
@@ -1059,34 +1139,62 @@ static void test_lurch_api_status_chat_handler_no_devicelist(void ** state) {
     will_return(__wrap_omemo_storage_user_devicelist_retrieve, dl_p);
     will_return(__wrap_omemo_storage_user_devicelist_retrieve, EXIT_SUCCESS);
 
-    expect_value(lurch_api_status_chat_handler_cb_mock, err, EXIT_SUCCESS);
-    expect_value(lurch_api_status_chat_handler_cb_mock, status, LURCH_STATUS_CHAT_NO_DEVICELIST);
-    const char * mock_user_data = "MOCK_USER_DATA";
-    expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
+    expect_value(__wrap_purple_find_conversation_with_account, type, PURPLE_CONV_TYPE_CHAT);
+    expect_value(__wrap_purple_find_conversation_with_account, name, test_conversation_name);
+    will_return(__wrap_purple_find_conversation_with_account, &conversation_fake);
 
-    lurch_api_status_chat_handler(NULL, test_conversation_name, lurch_api_status_chat_handler_cb_mock, mock_user_data);    
+    lurch_api_status_chat_discover_cb(&js_fake, test_conversation_name, JABBER_IQ_RESULT, "does not matter", disco_info_node, cb_data);
 }
 
 /**
- * Returns the "OK" status when for all members all necessary information could be found.
+ * Returns the "ok" status if the chat is not anonymous and all members' devicelists could be found.
  */
-static void test_lurch_api_status_chat_handler_ok(void ** state) {
+static void test_lurch_api_status_chat_discover_cb_ok(void ** state) {
     (void) state;
 
-    const char * own_jid = "me-testing@test.org/resource";
-    const char * test_conversation_name = "test-room@conference.test.org";
-    will_return(__wrap_purple_account_get_username, own_jid);
+    // from the XEP-0045 (MUC), example 9
+    const char * disco_info_result =
+        "<iq from='coven@chat.shakespeare.lit' "
+                "id='ik3vs715' "
+                "to='hag66@shakespeare.lit/pda' "
+                "type='result'>"
+            "<query xmlns='http://jabber.org/protocol/disco#info'>"
+                "<identity "
+                    "category='conference' "
+                    "name='A Dark Cave' "
+                    "type='text'/>"
+                "<feature var='http://jabber.org/protocol/muc'/>"
+                "<feature var='http://jabber.org/protocol/muc#stable_id'/>"
+                "<feature var='muc_passwordprotected'/>"
+                "<feature var='muc_hidden'/>"
+                "<feature var='muc_temporary'/>"
+                "<feature var='muc_open'/>"
+                "<feature var='muc_unmoderated'/>"
+                "<feature var='muc_nonanonymous'/>"
+            "</query>"
+        "</iq>";
+    xmlnode * disco_info_node = xmlnode_from_str(disco_info_result, -1);
 
-    expect_value(__wrap_omemo_storage_chatlist_exists, chat, test_conversation_name);
-    will_return(__wrap_omemo_storage_chatlist_exists, 1);
+    expect_value(lurch_api_status_chat_handler_cb_mock, err, EXIT_SUCCESS);
+    expect_value(lurch_api_status_chat_handler_cb_mock, status, LURCH_STATUS_CHAT_OK);
+    const char * mock_user_data = "MOCK_USER_DATA";
+    expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
 
-    PurpleConversation conversation_mock = {
-        .name = test_conversation_name
+    lurch_api_status_chat_cb_data * cb_data = g_malloc0(sizeof(lurch_api_status_chat_cb_data));
+    cb_data->cb = lurch_api_status_chat_handler_cb_mock;
+    cb_data->user_data_p = mock_user_data;
+
+    PurpleConnection gc_fake = {
+        .account = NULL
+    };
+    JabberStream js_fake = {
+        .gc = &gc_fake
     };
 
-    expect_value(__wrap_purple_find_conversation_with_account, type, PURPLE_CONV_TYPE_CHAT);
-    expect_value(__wrap_purple_find_conversation_with_account, name, test_conversation_name);
-    will_return(__wrap_purple_find_conversation_with_account, &conversation_mock);
+    const char * test_conversation_name = "test-room@conference.test.org";
+    PurpleConversation conversation_fake = {
+        .name = test_conversation_name
+    };
 
     JabberChatMember member = {
         .handle = "perfect-contact",
@@ -1095,7 +1203,7 @@ static void test_lurch_api_status_chat_handler_ok(void ** state) {
 
     // keys do not really matter as the tests function loops over the values
     GHashTable * member_table_mock = g_hash_table_new(g_str_hash, g_str_equal);
-    g_hash_table_insert(member_table_mock, "contact member", &member);
+    g_hash_table_insert(member_table_mock, "non-contact member", &member);
 
     JabberChat muc_mock = {
         .members = member_table_mock
@@ -1116,37 +1224,29 @@ static void test_lurch_api_status_chat_handler_ok(void ** state) {
     will_return(__wrap_omemo_storage_user_devicelist_retrieve, dl_p);
     will_return(__wrap_omemo_storage_user_devicelist_retrieve, EXIT_SUCCESS);
 
-    expect_value(lurch_api_status_chat_handler_cb_mock, err, EXIT_SUCCESS);
-    expect_value(lurch_api_status_chat_handler_cb_mock, status, LURCH_STATUS_CHAT_OK);
-    const char * mock_user_data = "MOCK_USER_DATA";
-    expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
+    expect_value(__wrap_purple_find_conversation_with_account, type, PURPLE_CONV_TYPE_CHAT);
+    expect_value(__wrap_purple_find_conversation_with_account, name, test_conversation_name);
+    will_return(__wrap_purple_find_conversation_with_account, &conversation_fake);
 
-    lurch_api_status_chat_handler(NULL, test_conversation_name, lurch_api_status_chat_handler_cb_mock, mock_user_data);    
+    lurch_api_status_chat_discover_cb(&js_fake, test_conversation_name, JABBER_IQ_RESULT, "does not matter", disco_info_node, cb_data);
 }
 
 /**
- * Returns "disabled" and an error return value when the conversation could not be found, i.e. an error.
+ * Returns "disabled" and an error when an error happens during discovery.
  */
-static void test_lurch_api_status_chat_handler_conv_not_found(void ** state) {
+static void test_lurch_api_status_chat_discover_cb_error(void ** state) {
     (void) state;
-
-    const char * own_jid = "me-testing@test.org/resource";
-    const char * test_conversation_name = "nonexistent-test-room@conference.test.org";
-    will_return(__wrap_purple_account_get_username, own_jid);
-
-    expect_value(__wrap_omemo_storage_chatlist_exists, chat, test_conversation_name);
-    will_return(__wrap_omemo_storage_chatlist_exists, 1);
-
-    expect_value(__wrap_purple_find_conversation_with_account, type, PURPLE_CONV_TYPE_CHAT);
-    expect_value(__wrap_purple_find_conversation_with_account, name, test_conversation_name);
-    will_return(__wrap_purple_find_conversation_with_account, NULL);
 
     expect_value(lurch_api_status_chat_handler_cb_mock, err, EXIT_FAILURE);
     expect_value(lurch_api_status_chat_handler_cb_mock, status, LURCH_STATUS_CHAT_DISABLED);
     const char * mock_user_data = "MOCK_USER_DATA";
     expect_value(lurch_api_status_chat_handler_cb_mock, user_data_p, mock_user_data);
 
-    lurch_api_status_chat_handler(NULL, test_conversation_name, lurch_api_status_chat_handler_cb_mock, mock_user_data);
+    lurch_api_status_chat_cb_data * cb_data = g_malloc0(sizeof(lurch_api_status_chat_cb_data));
+    cb_data->cb = lurch_api_status_chat_handler_cb_mock;
+    cb_data->user_data_p = mock_user_data;
+
+    lurch_api_status_chat_discover_cb(NULL, "does not matter", JABBER_IQ_ERROR, "does not matter", NULL, cb_data);
 }
 
 /**
@@ -1209,10 +1309,11 @@ int main(void) {
         cmocka_unit_test(test_lurch_api_status_im_handler_ok),
         cmocka_unit_test(test_lurch_api_status_im_handler_err),
         cmocka_unit_test(test_lurch_api_status_chat_handler_disabled),
-        cmocka_unit_test(test_lurch_api_status_chat_handler_anonymous),
-        cmocka_unit_test(test_lurch_api_status_chat_handler_no_devicelist),
-        cmocka_unit_test(test_lurch_api_status_chat_handler_ok),
-        cmocka_unit_test(test_lurch_api_status_chat_handler_conv_not_found),
+        cmocka_unit_test(test_lurch_api_status_chat_handler_enabled),
+        cmocka_unit_test(test_lurch_api_status_chat_discover_cb_anonymous),
+        cmocka_unit_test(test_lurch_api_status_chat_discover_cb_no_devicelist),
+        cmocka_unit_test(test_lurch_api_status_chat_discover_cb_ok),
+        cmocka_unit_test(test_lurch_api_status_chat_discover_cb_error),
         cmocka_unit_test(test_lurch_api_init),
         cmocka_unit_test(test_lurch_api_unload)
     };

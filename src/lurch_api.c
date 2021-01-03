@@ -10,9 +10,12 @@
 #include "libomemo_storage.h"
 
 #include "lurch_api.h"
+#include "lurch_api_internal.h"
 #include "lurch_util.h"
 
 #define MODULE_NAME "lurch-api"
+
+#define DISCO_XMLNS     "http://jabber.org/protocol/disco#info" // see XEP-0030: Service Discovery (https://xmpp.org/extensions/xep-0030.html)
 
 /**
  * Returns a GList of int32_t * containing the devices of the calling account.
@@ -461,46 +464,68 @@ cleanup:
   axc_context_destroy_all(axc_ctx_p);
 }
 
-void lurch_api_status_chat_handler(PurpleAccount * acc_p, const char * full_conversation_name, void (*cb)(int32_t err, lurch_status_chat_t status, void * user_data_p), void * user_data_p) {
+/**
+ * Callback for the discovery request.
+ * data_p needs to be a pointer to lurch_api_status_chat_cb_data, which will be freed.
+ */
+void lurch_api_status_chat_discover_cb(JabberStream * js_p, const char * from, JabberIqType type, const char * id, xmlnode * packet_p,  gpointer data_p) {
   int32_t ret_val = 0;
   lurch_status_chat_t status = LURCH_STATUS_CHAT_DISABLED;
 
-  char * uname = (void *) 0;
-  char * db_fn_omemo = (void *) 0;
-
+  xmlnode * query_node_p = (void *) 0;
+  xmlnode * child_node_p = (void *) 0;
   PurpleConversation * conv_p = (void *) 0;
   JabberChat * muc_p = (void *) 0;
+  const char * feature_name = (void *) 0;
   GList * curr_item_p = (void *) 0;
   JabberChatMember * curr_muc_member_p = (void *) 0;
   char * curr_muc_member_bare_jid = (void *) 0;
   omemo_devicelist * curr_dl_p = (void *) 0;
 
-  uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
-  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+  lurch_api_status_chat_cb_data * cb_data_p = (lurch_api_status_chat_cb_data *) data_p;
+  gboolean is_anonymous = TRUE;
 
-  ret_val = omemo_storage_chatlist_exists(full_conversation_name, db_fn_omemo);
-  if (ret_val < 0 || ret_val > 1) {
-    purple_debug_error(MODULE_NAME, "Failed to look up %s in file %s.", full_conversation_name, db_fn_omemo);
+  if (type == JABBER_IQ_ERROR) {
+    purple_debug_error(MODULE_NAME, "MUC feature discovery request for %s returned an error.\n", from );
+    ret_val = EXIT_FAILURE;
     goto cleanup;
-  } else if (ret_val == 0) {
-    ret_val = 0;
-    status = LURCH_STATUS_CHAT_DISABLED;
-    goto cleanup;
-  } else if (ret_val == 1) {
-    // omemo enabled for chat, continue
-    ret_val = 0;
   }
 
-  conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, full_conversation_name, acc_p);
+  query_node_p = xmlnode_get_child_with_namespace(packet_p, "query", DISCO_XMLNS);
+  if (!query_node_p) {
+    purple_debug_error(MODULE_NAME, "no 'query' node in feature discovery reply for %s\n", from);
+    ret_val = EXIT_FAILURE;
+    goto cleanup;
+  }
+
+  for (child_node_p = query_node_p->child; child_node_p; child_node_p = child_node_p->next) {
+    if (g_strcmp0(child_node_p->name, "feature")) {
+      continue;
+    }
+
+    feature_name = xmlnode_get_attrib(child_node_p, "var");
+    if (!g_strcmp0("muc_nonanonymous", feature_name)) {
+      is_anonymous = FALSE;
+    } else  if (!g_strcmp0("muc_open", feature_name)) {
+      purple_debug_warning(MODULE_NAME, "muc %s is open, this is likely to cause problems for OMEMO\n", from);
+    }
+  }
+
+  if (is_anonymous) {
+    status = LURCH_STATUS_CHAT_ANONYMOUS;
+    goto cleanup;
+  }
+
+  conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, from, js_p->gc->account);
   if (!conv_p) {
-    purple_debug_error(MODULE_NAME, "Could not find groupchat %s.\n", full_conversation_name);
+    purple_debug_error(MODULE_NAME, "could not find groupchat %s\n", from);
     ret_val = EXIT_FAILURE;
     goto cleanup;
   }
 
   muc_p = jabber_chat_find_by_conv(conv_p);
   if (!muc_p) {
-    purple_debug_error(MODULE_NAME, "Could not find the data for groupchat %s.\n", full_conversation_name);
+    purple_debug_error(MODULE_NAME, "Could not find the data for groupchat %s.\n", from);
     ret_val = EXIT_FAILURE;
     goto cleanup;
   }
@@ -509,34 +534,22 @@ void lurch_api_status_chat_handler(PurpleAccount * acc_p, const char * full_conv
     curr_muc_member_p = (JabberChatMember *) curr_item_p->data;
     curr_muc_member_bare_jid = jabber_get_bare_jid(curr_muc_member_p->jid);
 
-    if (!curr_muc_member_bare_jid) {
-      purple_debug_warning(
-        MODULE_NAME,
-        "Could not get the JID of chat member with handle %s, which probably means the chat is anonymous.\n",
-        curr_muc_member_p->handle
-      );
-
-      status = LURCH_STATUS_CHAT_ANONYMOUS;
-      goto cleanup;
-    }
-
-    ret_val = omemo_storage_user_devicelist_retrieve(curr_muc_member_bare_jid, db_fn_omemo, &curr_dl_p);
+    ret_val = omemo_storage_user_devicelist_retrieve(curr_muc_member_bare_jid, cb_data_p->db_fn_omemo, &curr_dl_p);
     if (ret_val) {
-      purple_debug_error(MODULE_NAME, "Could not retrieve the devicelist for %s from %s.\n", curr_muc_member_bare_jid, db_fn_omemo);
+      purple_debug_error(MODULE_NAME, "Could not retrieve the devicelist for %s from %s.\n", curr_muc_member_bare_jid, cb_data_p->db_fn_omemo);
       goto cleanup;
     }
 
     if (omemo_devicelist_is_empty(curr_dl_p)) {
       purple_debug_warning(
         MODULE_NAME,
-        "Could not find %s's devicelist in chat %s. The user is probably not in %s's contact list.\n",
-        curr_muc_member_bare_jid, full_conversation_name, uname
+        "Could not find chat %s member %s's devicelist in OMEMO DB %s. This probably means the user is not in this account's contact list.",
+        from, curr_muc_member_bare_jid, cb_data_p->db_fn_omemo
       );
 
       status = LURCH_STATUS_CHAT_NO_DEVICELIST;
       goto cleanup;
     }
-
 
     g_free(curr_muc_member_bare_jid);
     curr_muc_member_bare_jid = (void *) 0;
@@ -548,13 +561,84 @@ void lurch_api_status_chat_handler(PurpleAccount * acc_p, const char * full_conv
   status = LURCH_STATUS_CHAT_OK;
 
 cleanup:
-  cb(ret_val, status, user_data_p);
+  cb_data_p->cb(ret_val, status, cb_data_p->user_data_p);
 
-  g_free(uname);
-  g_free(db_fn_omemo);
-  // if loop was exited early
+  g_free(cb_data_p->db_fn_omemo);
+  g_free(cb_data_p);
+
+  // if loop was exited early, this needs to be cleaned up here
   g_free(curr_muc_member_bare_jid);
   omemo_devicelist_destroy(curr_dl_p);
+}
+
+// Send a discovery request to a MUC to learn its properties, e.g. for determining whether it is set to anonymous.
+// See https://xmpp.org/extensions/xep-0045.html#disco-roominfo
+static void lurch_api_status_chat_discover(PurpleAccount * acc_p, const char * full_conversation_name, lurch_api_status_chat_cb_data * data_p) {
+  JabberIq * jiq_p = (void *) 0;
+  xmlnode * query_node_p = (void *) 0;
+
+  JabberStream * js_p = purple_connection_get_protocol_data(purple_account_get_connection(acc_p));
+
+  jiq_p = jabber_iq_new(js_p, JABBER_IQ_GET);
+  xmlnode_set_attrib(jiq_p->node, "to", full_conversation_name);
+  query_node_p = xmlnode_new_child(jiq_p->node, "query");
+  xmlnode_set_namespace(query_node_p, DISCO_XMLNS);
+
+  jabber_iq_set_callback(jiq_p, lurch_api_status_chat_discover_cb, data_p);
+  jabber_iq_send(jiq_p); // this also frees the memory
+
+  purple_debug_info(MODULE_NAME, "sent feature discovery request to MUC %s\n", full_conversation_name);
+}
+
+void lurch_api_status_chat_handler(PurpleAccount * acc_p, const char * full_conversation_name, void (*cb)(int32_t err, lurch_status_chat_t status, void * user_data_p), void * user_data_p) {
+  int32_t ret_val = 0;
+  lurch_status_chat_t status = LURCH_STATUS_CHAT_DISABLED;
+  gboolean early_exit = FALSE; // call the provided callback directly in this function instead of in the iq query callback
+
+  char * uname = (void *) 0;
+  char * db_fn_omemo = (void *) 0;
+
+  uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
+  db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
+
+  ret_val = omemo_storage_chatlist_exists(full_conversation_name, db_fn_omemo);
+  if (ret_val < 0 || ret_val > 1) {
+    purple_debug_error(MODULE_NAME, "Failed to look up %s in file %s.", full_conversation_name, db_fn_omemo);
+    early_exit = TRUE;
+    goto cleanup;
+  } else if (ret_val == 0) {
+    ret_val = 0;
+    status = LURCH_STATUS_CHAT_DISABLED;
+    early_exit = TRUE;
+    goto cleanup;
+  } else if (ret_val == 1) {
+    // omemo enabled for chat, continue
+    ret_val = 0;
+  }
+
+  lurch_api_status_chat_cb_data * cb_data_p = (void *) 0;
+  cb_data_p = g_malloc0(sizeof(lurch_api_status_chat_cb_data));
+  if (!cb_data_p) {
+    ret_val = LURCH_ERR_NOMEM;
+    early_exit = TRUE;
+    goto cleanup;
+  }
+  cb_data_p->db_fn_omemo = db_fn_omemo;
+  cb_data_p->cb = cb;
+  cb_data_p->user_data_p = user_data_p;
+
+  lurch_api_status_chat_discover(acc_p, full_conversation_name, cb_data_p);
+
+cleanup:
+  g_free(uname);
+
+  if (early_exit) {
+    // in other cases, db_fn_omemo will be freed when the cb data is destroyed
+    g_free(db_fn_omemo); 
+
+    // in the regular case, the callback is passed on and called later
+    cb(ret_val, status, user_data_p);
+  }
 }
 
 static void lurch_api_marshal_VOID__POINTER_INT_POINTER_POINTER(PurpleCallback cb, va_list args, void * data, void ** return_val) {

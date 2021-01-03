@@ -167,6 +167,7 @@ $(BDIR)/test_lurch_api: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_
 	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $^ $(PURPLE_DIR)/libjabber.so.0 -o $@ $(LDFLAGS_T) \
 	-Wl,--wrap=purple_account_get_username \
 	-Wl,--wrap=purple_account_get_connection \
+	-Wl,--wrap=purple_connection_get_protocol_data \
 	-Wl,--wrap=purple_signal_register \
 	-Wl,--wrap=purple_signal_unregister \
 	-Wl,--wrap=purple_signal_connect \
@@ -174,6 +175,7 @@ $(BDIR)/test_lurch_api: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_
 	-Wl,--wrap=purple_find_conversation_with_account \
 	-Wl,--wrap=jabber_pep_publish \
 	-Wl,--wrap=jabber_chat_find_by_conv \
+	-Wl,--wrap=jabber_iq_send \
 	-Wl,--wrap=axc_get_device_id \
 	-Wl,--wrap=axc_key_load_public_own \
 	-Wl,--wrap=axc_key_load_public_addr \
