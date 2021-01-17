@@ -25,7 +25,7 @@ LIBPURPLE_CFLAGS=$(shell $(PKG_CONFIG) --cflags purple)
 PURPLE_DIR=$(shell $(PKG_CONFIG) --variable=plugindir purple)
 LIBPURPLE_LDFLAGS=$(shell $(PKG_CONFIG) --cflags purple) \
 		    -L$(PURPLE_DIR)
-		    
+
 XML2_CFLAGS ?= $(shell $(XML2_CONFIG) --cflags)
 XML2_LDFLAGS ?= $(shell $(XML2_CONFIG) --libs)
 
@@ -37,7 +37,7 @@ PKGCFG_C=$(GLIB_CFLAGS) \
 
 
 PKGCFG_L=$(shell $(PKG_CONFIG) --libs sqlite3 mxml) \
- 	$(GLIB_LDFLAGS) \
+	 $(GLIB_LDFLAGS) \
 	 $(LIBPURPLE_LDFLAGS) \
 	 $(XML2_LDFLAGS) \
 	 $(LIBGCRYPT_LDFLAGS)
@@ -58,7 +58,7 @@ PLUGIN_CPPFLAGS=-DPURPLE_PLUGINS
 # -D_BSD_SOURCE can be removed once nobody uses glibc <= 2.18 any more
 CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE -D_DEFAULT_SOURCE
 LDFLAGS += -ldl -lm $(PKGCFG_L) $(LJABBER) -Wl,-rpath,$(PURPLE_PLUGIN_DIR)
-LDFLAGS_T=$(LDFLAGS) -lpurple -lcmocka 
+LDFLAGS_T=$(LDFLAGS) -lpurple -lcmocka
 
 ### directories
 #
