@@ -84,10 +84,10 @@ AXC_PATH=$(AXC_BUILD)/libaxc-nt.a
 AX_DIR=$(AXC_DIR)/lib/libsignal-protocol-c
 AX_PATH=$(AX_DIR)/build/src/libsignal-protocol-c.a
 
-SOURCES := $(wildcard $(SDIR)/*.c)
+SOURCES := $(sort $(wildcard $(SDIR)/*.c))
 OBJECTS := $(patsubst $(SDIR)/%.c, $(BDIR)/%.o, $(SOURCES))
 OBJECTS_W_COVERAGE := $(patsubst $(SDIR)/%.c, $(BDIR)/%_w_coverage.o, $(SOURCES))
-TEST_SOURCES := $(wildcard $(TDIR)/test_*.c)
+TEST_SOURCES := $(sort $(wildcard $(TDIR)/test_*.c))
 TEST_OBJECTS := $(patsubst $(TDIR)/test_%.c, $(BDIR)/test_%.o, $(TEST_SOURCES))
 TEST_TARGETS := $(patsubst $(TDIR)/test_%.c, $(BDIR)/test_%, $(TEST_SOURCES))
 VENDOR_LIBS=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
