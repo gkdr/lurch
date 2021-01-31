@@ -21,14 +21,16 @@ static void lurch_cmd_help(PurpleConversation * conv_p) {
     "The following commands exist to interact with the lurch plugin:\n\n"
     " - '/lurch enable': Enables OMEMO encryption for this conversation. On by default for regular conversations, off for group chats.\n"
     " - '/lurch disable': Disables OMEMO encryption for this conversation.\n"
+    "\n"
     " - '/lurch id list': Displays this account's device list.\n"
     " - '/lurch id remove <id>': Removes the device ID <id> from this account's device list.\n"
+    "\n"
     " - '/lurch fp show': Displays this device's key fingerprint.\n"
     " - '/lurch fp list': Displays the fingerprints of all your devices.\n"
-    " - '/lurch fp other': Displays the fingerprints of all of your conversation partner's devices.\n"
+    " - '/lurch fp contact': Displays the fingerprints of all of your conversation partner's devices.\n"
+    "\n"
     " - '/lurch status': Shows the OMEMO status of this conversation from your point of view.\n"
-    " - '/lurch help': Displays this message.\n"
-    " - '/lurch uninstall': Uninstalls this device from OMEMO by removing its device ID from the devicelist.";
+    " - '/lurch help': Displays this message.";
 
     lurch_cmd_print(conv_p, help_message);
 }
@@ -277,11 +279,11 @@ static void lurch_cmd_fp(PurpleConversation * conv_p, const char * arg) {
   } else if (!g_strcmp0(arg, "list")) {
     lurch_cmd_print(conv_p, "Your devices' fingerprints are:");
     purple_signal_emit(plugins_handle, "lurch-fp-list", acc_p, lurch_fp_print, conv_p);
-  } else if (!g_strcmp0(arg, "other")) {
+  } else if (!g_strcmp0(arg, "contact")) {
     lurch_cmd_print(conv_p, "Your contact's devices' fingerprints are:");
     purple_signal_emit(plugins_handle, "lurch-fp-other", acc_p, conv_bare_jid, lurch_fp_print, conv_p);
   } else {
-    lurch_cmd_print(conv_p, "Valid arguments for 'fp' are 'show', 'list', and 'other'.");
+    lurch_cmd_print(conv_p, "Valid arguments for 'fp' are 'show', 'list', and 'contact'.");
   }
 }
 
@@ -307,7 +309,7 @@ static void lurch_cmd_status(PurpleConversation * conv_p) {
   g_free(bare_jid);
 }
 
-PurpleCmdRet lurch_cmd_func_v2(PurpleConversation * conv_p,
+PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
                                    const gchar * cmd,
                                    gchar ** args,
                                    gchar ** error,
