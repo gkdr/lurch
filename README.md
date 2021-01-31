@@ -117,9 +117,9 @@ It will remove this client from the _OMEMO_ device list, notifying other _OMEMO_
 Afterwards, you can just deactivate the plugin in the _Tools > Plugins_ window.
 
 In order to completely remove all data related to this plugin, e.g. for a fresh installation, you will need to delete the following files from your _.purple_ directory:
-* _your@xmpp.account_omemo_db.sqlite_ to delete the device list cache 
-* _your@xmpp.account_axc_db.sqlite_ to delete your keypair and all sessions with other devices
-* and finally, _lurch.[so|dll]_ found in the _plugins_ directory
+* `your@xmpp.account_omemo_db.sqlite` to delete the device list cache 
+* `your@xmpp.account_axc_db.sqlite` to delete your keypair and all sessions with other devices
+* and finally, `lurch.[so|dll]` found in the _plugins_ directory
 
 
 ## Troubleshooting
