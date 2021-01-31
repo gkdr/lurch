@@ -25,22 +25,48 @@ LIBPURPLE_CFLAGS=$(shell $(PKG_CONFIG) --cflags purple)
 PURPLE_DIR=$(shell $(PKG_CONFIG) --variable=plugindir purple)
 LIBPURPLE_LDFLAGS=$(shell $(PKG_CONFIG) --cflags purple) \
 		    -L$(PURPLE_DIR)
-		    
+
+LIBOMEMO_CFLAGS = $(shell $(PKG_CONFIG) --cflags libomemo)
+LIBOMEMO_LDFLAGS = $(shell $(PKG_CONFIG) --libs libomemo)
+
+LIBAXC_CFLAGS = $(shell $(PKG_CONFIG) --cflags libaxc)
+LIBAXC_LDFLAGS = $(shell $(PKG_CONFIG) --libs libaxc)
+
+LIBSIGNAL_PROTOCOL_CFLAGS = $(shell $(PKG_CONFIG) --cflags libsignal-protocol-c)
+LIBSIGNAL_PROTOCOL_LDFLAGS = $(shell $(PKG_CONFIG) --cflags libsignal-protocol-c)
+
 XML2_CFLAGS ?= $(shell $(XML2_CONFIG) --cflags)
 XML2_LDFLAGS ?= $(shell $(XML2_CONFIG) --libs)
 
 LIBGCRYPT_LDFLAGS ?= $(shell $(LIBGCRYPT_CONFIG) --libs)
 
+USE_DYNAMIC_LIBS=libsignal-protocol-c libaxc libomemo
+USE_DYNAMIC_LIBS:=$(shell pkg-config --exists $(USE_DYNAMIC_LIBS) && \
+	echo '$(USE_DYNAMIC_LIBS)')
+
 PKGCFG_C=$(GLIB_CFLAGS) \
 	 $(LIBPURPLE_CFLAGS) \
 	 $(XML2_CFLAGS)
 
+ifneq ($(USE_DYNAMIC_LIBS),)
+	PKGCFG_C+=$(LIBOMEMO_CFLAGS) \
+	 $(LIBAXC_CFLAGS) \
+	 $(LIBSIGNAL_PROTOCOL_CFLAGS)
+endif
+
 
 PKGCFG_L=$(shell $(PKG_CONFIG) --libs sqlite3 mxml) \
- 	$(GLIB_LDFLAGS) \
+	 $(GLIB_LDFLAGS) \
 	 $(LIBPURPLE_LDFLAGS) \
 	 $(XML2_LDFLAGS) \
 	 $(LIBGCRYPT_LDFLAGS)
+
+ifneq ($(USE_DYNAMIC_LIBS),)
+	PKGCFG_L+=$(LIBOMEMO_LDFLAGS) \
+	 $(LIBAXC_LDFLAGS) \
+	 $(LIBSIGNAL_PROTOCOL_LDFLAGS)
+endif
+
 
 ifneq ("$(wildcard /etc/redhat-release)","")
 	LJABBER= -lxmpp
@@ -52,13 +78,17 @@ else
 endif
 endif
 
-HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
+ifeq ($(USE_DYNAMIC_LIBS),)
+	HEADERS=-I$(HDIR)/jabber -I$(LOMEMO_SRC) -I$(AXC_SRC) -I$(AX_DIR)/src
+else
+	HEADERS=-I$(HDIR)/jabber
+endif
 CFLAGS += -std=c11 -Wall -g -Wstrict-overflow $(PKGCFG_C) $(HEADERS)
 PLUGIN_CPPFLAGS=-DPURPLE_PLUGINS
 # -D_BSD_SOURCE can be removed once nobody uses glibc <= 2.18 any more
 CPPFLAGS += -D_XOPEN_SOURCE=700 -D_BSD_SOURCE -D_DEFAULT_SOURCE
 LDFLAGS += -ldl -lm $(PKGCFG_L) $(LJABBER) -Wl,-rpath,$(PURPLE_PLUGIN_DIR)
-LDFLAGS_T=$(LDFLAGS) -lpurple -lcmocka 
+LDFLAGS_T=$(LDFLAGS) -lpurple -lcmocka
 
 ### directories
 #
@@ -84,14 +114,15 @@ AXC_PATH=$(AXC_BUILD)/libaxc-nt.a
 AX_DIR=$(AXC_DIR)/lib/libsignal-protocol-c
 AX_PATH=$(AX_DIR)/build/src/libsignal-protocol-c.a
 
-SOURCES := $(wildcard $(SDIR)/*.c)
+SOURCES := $(sort $(wildcard $(SDIR)/*.c))
 OBJECTS := $(patsubst $(SDIR)/%.c, $(BDIR)/%.o, $(SOURCES))
 OBJECTS_W_COVERAGE := $(patsubst $(SDIR)/%.c, $(BDIR)/%_w_coverage.o, $(SOURCES))
-TEST_SOURCES := $(wildcard $(TDIR)/test_*.c)
+TEST_SOURCES := $(sort $(wildcard $(TDIR)/test_*.c))
 TEST_OBJECTS := $(patsubst $(TDIR)/test_%.c, $(BDIR)/test_%.o, $(TEST_SOURCES))
 TEST_TARGETS := $(patsubst $(TDIR)/test_%.c, $(BDIR)/test_%, $(TEST_SOURCES))
-VENDOR_LIBS=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
-
+ifeq ($(USE_DYNAMIC_LIBS),)
+	VENDOR_LIBS=$(LOMEMO_PATH) $(AXC_PATH) $(AX_PATH)
+endif
 
 ### make rules
 #
