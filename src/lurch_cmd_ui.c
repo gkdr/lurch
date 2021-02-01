@@ -272,7 +272,7 @@ static void lurch_cmd_disable(PurpleConversation * conv_p) {
 static void lurch_cmd_fp(PurpleConversation * conv_p, const char * arg) {
   PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
   void * plugins_handle = purple_plugins_get_handle();
-  char * conv_bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
+  char * conv_bare_jid = (void *) 0;
 
   if (!g_strcmp0(arg, "show")) {
     purple_signal_emit(plugins_handle, "lurch-fp-get", acc_p, lurch_fp_show_print, conv_p);
@@ -281,10 +281,13 @@ static void lurch_cmd_fp(PurpleConversation * conv_p, const char * arg) {
     purple_signal_emit(plugins_handle, "lurch-fp-list", acc_p, lurch_fp_print, conv_p);
   } else if (!g_strcmp0(arg, "contact")) {
     lurch_cmd_print(conv_p, "Your contact's devices' fingerprints are:");
+    conv_bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
     purple_signal_emit(plugins_handle, "lurch-fp-other", acc_p, conv_bare_jid, lurch_fp_print, conv_p);
   } else {
     lurch_cmd_print(conv_p, "Valid arguments for 'fp' are 'show', 'list', and 'contact'.");
   }
+
+  g_free(conv_bare_jid);
 }
 
 static void lurch_cmd_status(PurpleConversation * conv_p) {

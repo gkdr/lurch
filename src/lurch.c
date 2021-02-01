@@ -53,7 +53,7 @@ typedef struct lurch_queued_msg {
   GHashTable * sess_handled_p;
 } lurch_queued_msg;
 
-omemo_crypto_provider crypto = {
+const omemo_crypto_provider crypto = {
     .random_bytes_func = omemo_default_crypto_random_bytes,
     .aes_gcm_encrypt_func = omemo_default_crypto_aes_gcm_encrypt,
     .aes_gcm_decrypt_func = omemo_default_crypto_aes_gcm_decrypt
@@ -114,7 +114,7 @@ cleanup:
   }
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
   }
   return ret_val;
 }
@@ -203,10 +203,10 @@ static int lurch_axc_prepare(char * uname) {
 cleanup:
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
   }
   axc_context_destroy_all(axc_ctx_p);
-  free(db_fn_omemo);
+  g_free(db_fn_omemo);
 
   return ret_val;
 }
@@ -260,7 +260,7 @@ cleanup:
   }
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
   }
   axc_buf_free(key_buf_p);
 
@@ -328,7 +328,7 @@ static int lurch_msg_encrypt_for_addrs(omemo_message * om_msg_p, GList * addr_l_
 cleanup:
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
   }
   axc_buf_free(curr_key_ct_buf_p);
 
@@ -436,13 +436,13 @@ static int lurch_bundle_publish_own(JabberStream * js_p) {
 cleanup:
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
   }
-  free(uname);
+  g_free(uname);
   axc_context_destroy_all(axc_ctx_p);
   axc_bundle_destroy(axcbundle_p);
   omemo_bundle_destroy(omemobundle_p);
-  free(bundle_xml);
+  g_free(bundle_xml);
 
   return ret_val;
 }
@@ -478,7 +478,7 @@ static int lurch_bundle_create_session(const char * uname,
                                        axc_context * axc_ctx_p) {
   int ret_val = 0;
   char * err_msg_dbg = (void *) 0;
-
+  char * tempxml = (void *) 0;
   int len;
   omemo_bundle * om_bundle_p = (void *) 0;
   axc_address remote_addr = {0};
@@ -499,7 +499,8 @@ static int lurch_bundle_create_session(const char * uname,
 
   purple_debug_info("lurch", "%s: creating a session between %s and %s from a received bundle\n", __func__, uname, from);
 
-  ret_val = omemo_bundle_import(xmlnode_to_str(items_p, &len), &om_bundle_p);
+  tempxml = xmlnode_to_str(items_p, &len);
+  ret_val = omemo_bundle_import(tempxml, &om_bundle_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to import xml into bundle");
     goto cleanup;
@@ -557,9 +558,10 @@ static int lurch_bundle_create_session(const char * uname,
 cleanup:
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
   }
   omemo_bundle_destroy(om_bundle_p);
+  g_free(tempxml);
   free(pre_key_p);
   free(signed_pre_key_p);
   free(signature_p);
@@ -588,11 +590,11 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
                                     xmlnode * packet_p, gpointer data_p) {
   int ret_val = 0;
   char * err_msg_conv = (void *) 0;
-  char * err_msg_dbg = (void *) 0;
+  const char * err_msg_dbg = (void *) 0;
 
   char * uname = (void *) 0;
   char ** split = (void *) 0;
-  char * device_id_str = (void *) 0;
+  const char * device_id_str = (void *) 0;
   axc_address addr = {0};
   axc_context * axc_ctx_p = (void *) 0;
   char * recipient = (void *) 0;
@@ -708,11 +710,11 @@ cleanup:
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
   }
 
-  free(uname);
+  g_free(uname);
   g_strfreev(split);
   axc_context_destroy_all(axc_ctx_p);
-  free(addr_key);
-  free(recipient);
+  g_free(addr_key);
+  g_free(recipient);
   free(msg_xml);
   if (msg_node_p) {
     xmlnode_free(msg_node_p);
@@ -776,7 +778,7 @@ cleanup:
   g_free(device_id_str);
   g_free(rand_str);
   g_free(req_id);
-  g_free(bundle_node_name);
+  free(bundle_node_name);
 
   return ret_val;
 }
@@ -885,10 +887,10 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
 cleanup:
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
   }
-  free(laddr.jid);
-  free(uname);
+  g_free(laddr.jid);
+  g_free(uname);
   axc_context_destroy_all(axc_ctx_p);
   omemo_message_destroy(msg_p);
   axc_buf_free(key_ct_buf_p);
@@ -972,9 +974,9 @@ static int lurch_devicelist_process(char * uname, omemo_devicelist * dl_in_p, Ja
 cleanup:
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
   }
-  free(db_fn_omemo);
+  g_free(db_fn_omemo);
   omemo_devicelist_destroy(dl_db_p);
   axc_context_destroy_all(axc_ctx_p);
   g_list_free_full(add_l_p, free);
@@ -992,7 +994,7 @@ cleanup:
 static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const char * from, xmlnode * items_p) {
   int ret_val = 0;
   char * err_msg_dbg = (void *) 0;
-
+  char * tempxml = (void *) 0;
   int len = 0;
   PurpleAccount * acc_p = (void *) 0;
   char * uname = (void *) 0;
@@ -1041,7 +1043,8 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
     }
   } else {
     purple_debug_info("lurch", "%s: %s\n", __func__, "comparing received devicelist with cached one");
-    ret_val = omemo_devicelist_import(xmlnode_to_str(items_p, &len), uname, &dl_p);
+    tempxml = xmlnode_to_str(items_p, &len);
+    ret_val = omemo_devicelist_import(tempxml, uname, &dl_p);
     if (ret_val) {
       err_msg_dbg = g_strdup_printf("failed to import received devicelist");
       goto cleanup;
@@ -1098,8 +1101,9 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
 cleanup:
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
   }
+  g_free(tempxml);
   g_free(uname);
   axc_context_destroy_all(axc_ctx_p);
   omemo_devicelist_destroy(dl_p);
@@ -1114,7 +1118,7 @@ static void lurch_pep_devicelist_event_handler(JabberStream * js_p, const char *
   int ret_val = 0;
   int len = 0;
   char * err_msg_dbg = (void *) 0;
-
+  char * tempxml = (void *) 0;
   char * uname = (void *) 0;
   omemo_devicelist * dl_in_p = (void *) 0;
 
@@ -1127,7 +1131,8 @@ static void lurch_pep_devicelist_event_handler(JabberStream * js_p, const char *
 
   purple_debug_info("lurch", "%s: %s received devicelist update from %s\n", __func__, uname, from);
 
-  ret_val = omemo_devicelist_import(xmlnode_to_str(items_p, &len), from, &dl_in_p);
+  tempxml = xmlnode_to_str(items_p, &len);
+  ret_val = omemo_devicelist_import(tempxml, from, &dl_in_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to import devicelist");
     goto cleanup;
@@ -1144,6 +1149,7 @@ cleanup:
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
     g_free(err_msg_dbg);
   }
+  g_free(tempxml);
   g_free(uname);
   omemo_devicelist_destroy(dl_in_p);
 }
@@ -1352,7 +1358,7 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
 cleanup:
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
     *msg_stanza_pp = (void *) 0;
   }
   if (!qmsg_p || ret_val) {
@@ -1417,6 +1423,8 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
   }
   tempxml = xmlnode_to_str(*msg_stanza_pp, &len);
   ret_val = omemo_message_prepare_encryption(tempxml, own_id, &crypto, OMEMO_STRIP_ALL, &msg_p);
+  g_free(tempxml);
+  tempxml = (void *) 0;
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to construct omemo message");
     goto cleanup;
@@ -1431,7 +1439,6 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
     goto cleanup;
   }
 
-  free(tempxml);
   ret_val = omemo_devicelist_export(dl_p, &tempxml);
   if(ret_val) {
     err_msg_dbg = g_strdup_printf("failed to export devicelist for %s", to);
@@ -1458,6 +1465,8 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
     err_msg_dbg = g_strdup_printf("failed to retrieve devicelist for %s", uname);
     goto cleanup;
   }
+  free(tempxml);
+  tempxml = (void *) 0;
   omemo_devicelist_export(user_dl_p, &tempxml);
   purple_debug_info("lurch", "retrieved own devicelist:\n%s\n", tempxml);
   own_dl_p = omemo_devicelist_get_id_list(user_dl_p);
@@ -1481,16 +1490,16 @@ cleanup:
   if (err_msg_dbg) {
     purple_conv_present_error(recipient, purple_connection_get_account(gc_p), LURCH_ERR_STRING_ENCRYPT);
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
     *msg_stanza_pp = (void *) 0;
   }
   if (ret_val) {
     omemo_message_destroy(msg_p);
     g_list_free_full(addr_l_p, lurch_addr_list_destroy_func);
   }
-  free(recipient);
-  free(uname);
-  free(db_fn_omemo);
+  g_free(recipient);
+  g_free(uname);
+  g_free(db_fn_omemo);
   omemo_devicelist_destroy(dl_p);
   g_list_free_full(recipient_dl_p, free);
   omemo_devicelist_destroy(user_dl_p);
@@ -1630,7 +1639,7 @@ cleanup:
   if (err_msg_dbg) {
     purple_conv_present_error(purple_conversation_get_name(conv_p), purple_connection_get_account(gc_p), LURCH_ERR_STRING_ENCRYPT);
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
     *msg_stanza_pp = (void *) 0;
   }
   if (ret_val) {
@@ -1638,17 +1647,17 @@ cleanup:
     g_list_free_full(addr_l_p, lurch_addr_list_destroy_func);
   }
 
-  free(uname);
-  free(db_fn_omemo);
+  g_free(uname);
+  g_free(db_fn_omemo);
   axc_context_destroy_all(axc_ctx_p);
-  free(tempxml);
+  g_free(tempxml);
   omemo_devicelist_destroy(user_dl_p);
 }
 
 static void lurch_xml_sent_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp) {
   xmlnode * body_node_p      = (void *) 0;
   xmlnode * encrypted_node_p = (void *) 0;
-  char * node_name           = (void *) 0;
+  const char * node_name     = (void *) 0;
   const char * type          = (void *) 0;
 
   if (uninstall) {
@@ -1706,8 +1715,8 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
   char * xml = (void *) 0;
   char * sender = (void *) 0;
   char ** split = (void *) 0;
-  char * room_name = (void *) 0;
-  char * buddy_nick = (void *) 0;
+  const char * room_name = (void *) 0;
+  const char * buddy_nick = (void *) 0;
   xmlnode * plaintext_msg_node_p = (void *) 0;
   char * recipient_bare_jid = (void *) 0;
   PurpleConversation * conv_p = (void *) 0;
@@ -1780,8 +1789,8 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
 
     sender = jabber_get_bare_jid(muc_member_p->jid);
   }
-
-  ret_val = omemo_message_prepare_decryption(xmlnode_to_str(*msg_stanza_pp, &len), &msg_p);
+  xml = xmlnode_to_str(*msg_stanza_pp, &len);
+  ret_val = omemo_message_prepare_decryption(xml, &msg_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed import msg for decryption");
     goto cleanup;
@@ -1866,6 +1875,8 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     goto cleanup;
   }
 
+  g_free(xml);
+  xml = (void *) 0;
   ret_val = omemo_message_export_decrypted(msg_p, axc_buf_get_data(key_decrypted_p), axc_buf_get_len(key_decrypted_p), &crypto, &xml);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to decrypt payload");
@@ -1891,11 +1902,11 @@ cleanup:
   if (err_msg_dbg) {
     purple_conv_present_error(sender, purple_connection_get_account(gc_p), LURCH_ERR_STRING_DECRYPT);
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
   }
 
   g_strfreev(split);
-  free(sender);
+  g_free(sender);
   free(xml);
   free(bundle_node_name);
   free(sender_name);
@@ -1903,9 +1914,9 @@ cleanup:
   axc_buf_free(key_buf_p);
   free(key_p);
   axc_context_destroy_all(axc_ctx_p);
-  free(uname);
-  free(db_fn_omemo);
-  free(recipient_bare_jid);
+  g_free(uname);
+  g_free(db_fn_omemo);
+  g_free(recipient_bare_jid);
   omemo_message_destroy(keytransport_msg_p);
   omemo_message_destroy(msg_p);
 }
@@ -1919,7 +1930,7 @@ static void lurch_message_warn(PurpleConnection * gc_p, xmlnode ** msg_stanza_pp
   axc_context * axc_ctx_p = (void *) 0;
   char * conv_name = (void *) 0;
   char ** split = (void *) 0;
-  char * room_name = (void *) 0;
+  const char * room_name = (void *) 0;
 
   const char * type = xmlnode_get_attrib(*msg_stanza_pp, "type");
   const char * from = xmlnode_get_attrib(*msg_stanza_pp, "from");
@@ -1968,16 +1979,16 @@ static void lurch_message_warn(PurpleConnection * gc_p, xmlnode ** msg_stanza_pp
   }
 
 cleanup:
-  free(uname);
-  free(db_fn_omemo);
-  free(conv_name);
+  g_free(uname);
+  g_free(db_fn_omemo);
+  g_free(conv_name);
   g_strfreev(split);
   axc_context_destroy_all(axc_ctx_p);
 }
 
 static void lurch_xml_received_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp) {
-  xmlnode * temp_node_p = (void *) 0;
-  char * node_name      = (void *) 0;
+  xmlnode * temp_node_p  = (void *) 0;
+  const char * node_name = (void *) 0;
 
   if (uninstall) {
     return;
@@ -2051,10 +2062,10 @@ static int lurch_topic_update_im(PurpleConversation * conv_p) {
   }
 
 cleanup:
-  free(uname);
-  free(new_title);
+  g_free(uname);
+  g_free(new_title);
   axc_context_destroy_all(axc_ctx_p);
-  free(db_fn_omemo);
+  g_free(db_fn_omemo);
   omemo_devicelist_destroy(dl_p);
   free(partner_name_bare);
 
@@ -2084,9 +2095,9 @@ static int lurch_topic_update_chat(PurpleConversation * conv_p) {
   purple_conversation_set_title(conv_p, new_title);
 
 cleanup:
-  free(uname);
-  free(db_fn_omemo);
-  free(new_title);
+  g_free(uname);
+  g_free(db_fn_omemo);
+  g_free(new_title);
 
   return ret_val;
 }
@@ -2130,7 +2141,7 @@ static void lurch_conv_updated_cb(PurpleConversation * conv_p, PurpleConvUpdateT
  */
 static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
   int ret_val = 0;
-  char * err_msg_dbg = (void *) 0;
+  const char * err_msg_dbg = (void *) 0;
   char * dl_ns = (void *) 0;
   void * jabber_handle_p = (void *) 0;
   GList * accs_l_p = (void *) 0;
