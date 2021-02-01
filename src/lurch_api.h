@@ -16,7 +16,8 @@ typedef enum {
     LURCH_STATUS_CHAT_DISABLED = 0,  // OMEMO was not manually enabled
     LURCH_STATUS_CHAT_ANONYMOUS,     // chat is anonymous, i.e. a member's JID could not be accessed
     LURCH_STATUS_CHAT_NO_DEVICELIST, // a member's devicelist could not be accessed, probably because s/he is not a contact
-    LURCH_STATUS_CHAT_OK             // in theory, OMEMO should work
+    LURCH_STATUS_CHAT_OK,            // in theory, OMEMO should work
+    LURCH_STATUS_CHAT_NO_JIDS        // the chat is not anonymous, but the JIDs are still not visible
 } lurch_status_chat_t;
 
 /**

@@ -534,9 +534,17 @@ void lurch_api_status_chat_discover_cb(JabberStream * js_p, const char * from, J
     curr_muc_member_p = (JabberChatMember *) curr_item_p->data;
     curr_muc_member_bare_jid = jabber_get_bare_jid(curr_muc_member_p->jid);
 
+    if (!curr_muc_member_bare_jid) {
+      // getting here means that the MUC is not anonymous, but the members' JIDs are not available
+      // this can happen when the room is reconfigured to be anonymous while the client is in it
+      purple_debug_warning(MODULE_NAME, "Could not access %s's JID even though the room is public. Rejoining will probably fix this.\n", curr_muc_member_p->handle);
+      status = LURCH_STATUS_CHAT_NO_JIDS;
+      goto cleanup;
+    }
+
     ret_val = omemo_storage_user_devicelist_retrieve(curr_muc_member_bare_jid, cb_data_p->db_fn_omemo, &curr_dl_p);
     if (ret_val) {
-      purple_debug_error(MODULE_NAME, "Could not retrieve the devicelist for %s from %s.\n", curr_muc_member_bare_jid, cb_data_p->db_fn_omemo);
+      purple_debug_error(MODULE_NAME, "Could not retrieve the devicelist for %s (JID: %s) from %s.\n", curr_muc_member_p->handle, curr_muc_member_bare_jid, cb_data_p->db_fn_omemo);
       goto cleanup;
     }
 

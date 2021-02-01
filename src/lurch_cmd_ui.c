@@ -199,6 +199,9 @@ void lurch_status_chat_print(int32_t err, lurch_status_chat_t status, void * use
     case LURCH_STATUS_CHAT_OK:
       msg = "OMEMO is enabled for this conversation and everything should work. You can turn it off by typing '/lurch disable'.";
       break;
+    case LURCH_STATUS_CHAT_NO_JIDS:
+      msg = "The MUC is not anonymous, but the members' JIDs are inaccessible. This can happen if the MUC was reconfigured to be non-anonymous while this client was joined. Rejoining the chat will probably fix the issue.";
+      break;
     default:
       msg = "Received unknown status code.";
   }
