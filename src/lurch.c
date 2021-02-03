@@ -1999,65 +1999,90 @@ static void lurch_xml_received_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp)
   }
 }
 
-static int lurch_topic_update_im(PurpleConversation * conv_p) {
-  int ret_val = 0;
+/**
+ * @return negative on failure,  0 on success, positive on available
+ */
+static int lurch_update_base_im(PurpleConversation * conv_p, const char **partner_name) {
+  int session_val = 0;
+  int ret_val = -1;
 
   char * uname = (void *) 0;
-  const char * partner_name = purple_conversation_get_name(conv_p);
+  *partner_name = purple_conversation_get_name(conv_p);
   char * partner_name_bare = (void *) 0;
   axc_context * axc_ctx_p = (void *) 0;
   char * db_fn_omemo = (void *) 0;
   omemo_devicelist * dl_p = (void *) 0;
 
-  char * new_title = (void *) 0;
-
   uname = lurch_util_uname_strip(purple_account_get_username(purple_conversation_get_account(conv_p)));
   db_fn_omemo = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_OMEMO);
-  partner_name_bare = jabber_get_bare_jid(partner_name);
+  partner_name_bare = jabber_get_bare_jid(*partner_name);
 
-  if (uninstall) {
+  if (uninstall
+      || omemo_storage_chatlist_exists(partner_name_bare, db_fn_omemo)
+      || lurch_util_axc_get_init_ctx(uname, &axc_ctx_p)) {
     goto cleanup;
   }
 
-  ret_val = omemo_storage_chatlist_exists(partner_name_bare, db_fn_omemo);
-  if (ret_val < 0 || ret_val > 0) {
-    goto cleanup;
-  }
-
-  ret_val = lurch_util_axc_get_init_ctx(uname, &axc_ctx_p);
-  if (ret_val) {
-    goto cleanup;
-  }
-
-  ret_val = axc_session_exists_any(partner_name_bare, axc_ctx_p);
-  if (ret_val < 0) {
-    goto cleanup;
-  } else if (ret_val) {
-    new_title = g_strdup_printf("%s (%s)", partner_name, "OMEMO");
-
-  } else {
-    ret_val = omemo_storage_user_devicelist_retrieve(partner_name_bare, db_fn_omemo, &dl_p);
-    if (ret_val) {
+  session_val = axc_session_exists_any(partner_name_bare, axc_ctx_p);
+  if (session_val) { /*at lease one user session*/
+    ret_val = 0;
+  } else if (!session_val) {
+    if (omemo_storage_user_devicelist_retrieve(partner_name_bare,
+                                                 db_fn_omemo, &dl_p)) {
+      /*error when retrieve list of devices for user*/
       goto cleanup;
-    }
-
+    } 
     if (!omemo_devicelist_is_empty(dl_p)) {
-      new_title = g_strdup_printf("%s (%s)", partner_name, "OMEMO available");
+      /*devicelist dl_p contain the ID*/
+      ret_val = 1;
     }
+  }
+
+cleanup:
+  free(uname);
+  axc_context_destroy_all(axc_ctx_p);
+  free(db_fn_omemo);
+  omemo_devicelist_destroy(dl_p);
+  free(partner_name_bare);
+
+  return ret_val;
+}
+
+static int lurch_topic_update_im(PurpleConversation * conv_p) {
+  const char * partner_name = (void *) 0;
+  char * new_title = (void *) 0;
+  int ret_val = lurch_update_base_im(conv_p, &partner_name);
+
+  if (!ret_val) {
+      new_title = g_strdup_printf("%s (%s)", partner_name, "OMEMO");
+  } else if (ret_val > 0) {
+      new_title = g_strdup_printf("%s (%s)", partner_name, "OMEMO available");
   }
 
   if (new_title) {
     purple_conversation_set_title(conv_p, new_title);
   }
 
-cleanup:
-  free(uname);
   free(new_title);
-  axc_context_destroy_all(axc_ctx_p);
-  free(db_fn_omemo);
-  omemo_devicelist_destroy(dl_p);
-  free(partner_name_bare);
+  return ret_val;
+}
 
+static int lurch_notice_update_im(PurpleConversation * conv_p) {
+  char * connect_msg = (void*) 0;
+  int ret_val = lurch_topic_update_im(conv_p);
+
+  if (!ret_val) {
+      connect_msg = g_strdup("OMEMO encrypt conversation: Enabled");
+  } else if (ret_val > 0) {
+      connect_msg = g_strdup("OMEMO encrypt conversation: Available");
+  }    
+
+  if (connect_msg) {
+    purple_conversation_write(conv_p, NULL, connect_msg,
+                    PURPLE_MESSAGE_SYSTEM, time(NULL));
+  }
+
+  free(connect_msg);
   return ret_val;
 }
 
@@ -2097,7 +2122,11 @@ static void lurch_conv_created_cb(PurpleConversation * conv_p) {
   }
 
   if (purple_conversation_get_type(conv_p) == PURPLE_CONV_TYPE_IM) {
-    lurch_topic_update_im(conv_p);
+    if (purple_prefs_get_bool(LURCH_PREF_SYS_NOTICE)) {
+        lurch_notice_update_im(conv_p);
+    } else {
+        lurch_topic_update_im(conv_p);
+    }
   } else if (purple_conversation_get_type(conv_p) == PURPLE_CONV_TYPE_CHAT) {
     lurch_topic_update_chat(conv_p);
   }
@@ -2208,6 +2237,15 @@ static PurplePluginPrefFrame * lurch_get_plugin_pref_frame(PurplePlugin * plugin
   PurplePluginPref * ppref_p;
 
   frame_p = purple_plugin_pref_frame_new();
+
+  ppref_p = purple_plugin_pref_new_with_label("Notification");
+  purple_plugin_pref_frame_add(frame_p, ppref_p);
+
+  ppref_p = purple_plugin_pref_new_with_name_and_label(
+                  LURCH_PREF_SYS_NOTICE,
+                  "System notification for OMEMO conversation");
+  purple_plugin_pref_frame_add(frame_p, ppref_p);
+
   ppref_p = purple_plugin_pref_new_with_label("Extended logging");
   purple_plugin_pref_frame_add(frame_p, ppref_p);
 
@@ -2282,6 +2320,7 @@ lurch_plugin_init(PurplePlugin * plugin_p) {
   info_p->dependencies = g_list_prepend(info_p->dependencies, "prpl-jabber");
 
   purple_prefs_add_none(LURCH_PREF_ROOT);
+  purple_prefs_add_bool(LURCH_PREF_SYS_NOTICE, TRUE);
   purple_prefs_add_bool(LURCH_PREF_AXC_LOGGING, FALSE);
   purple_prefs_add_int(LURCH_PREF_AXC_LOGGING_LEVEL, AXC_LOG_INFO);
 }
