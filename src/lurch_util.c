@@ -73,7 +73,7 @@ int lurch_util_axc_get_init_ctx(char * uname, axc_context ** ctx_pp) {
   db_fn = lurch_util_uname_get_db_fn(uname, LURCH_DB_NAME_AXC);
   ret_val = axc_context_set_db_fn(ctx_p, db_fn, strlen(db_fn));
   if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to set axc db filename");
+    err_msg_dbg = g_strdup_printf("failed to set axc db filename to %s", db_fn);
     goto cleanup;
   }
 
@@ -100,10 +100,10 @@ cleanup:
   }
   if (err_msg_dbg) {
     purple_debug_error("lurch", "%s: %s (%i)\n", __func__, err_msg_dbg, ret_val);
-    free(err_msg_dbg);
+    g_free(err_msg_dbg);
   }
 
-  free (db_fn);
+  g_free (db_fn);
   return ret_val;
 }
 
