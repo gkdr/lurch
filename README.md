@@ -4,13 +4,7 @@
 (Plus I thought the word sounds funny.)
 
 ## News
-I rewrote how MUCs are handled and they should work much better now. If not, feel free to open an issue, as usual.
-
-The first Windows build of 0.6.6 was missing a compile-time flag, so if it does not work for you download it again, or get this version once available.
-
-Version 0.2 of the _OMEMO XEP_ adopted the namespace actually implemented by all the clients, so there is no need for a 'compatible' version of the plugin any longer. This mostly concerns Windows users who used the `lurch_compat.dll`, so don't be confused if it's not there.
-
-If you use a version <0.6.5, you should still definitely update for security reasons.
+This section is now the [changelog](https://github.com/gkdr/lurch/blob/master/CHANGELOG.md).
 
 ## Table of Contents
 1. [Installation](#installation)
