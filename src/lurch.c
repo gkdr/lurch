@@ -1526,6 +1526,7 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
   JabberChat * muc_p = (void *) 0;
   JabberChatMember * curr_muc_member_p = (void *) 0;
   xmlnode * body_node_p = (void *) 0;
+  char * body_data = (void *) 0;
   GList * curr_item_p = (void *) 0;
   char * curr_muc_member_jid = (void *) 0;
   omemo_devicelist * curr_dl_p = (void *) 0;
@@ -1599,8 +1600,10 @@ static void lurch_message_encrypt_groupchat(PurpleConnection * gc_p, xmlnode ** 
     // and the typed message written to the chat window manually without sending
     if (!g_strcmp0(curr_muc_member_jid, uname)) {
       body_node_p = xmlnode_get_child(*msg_stanza_pp, "body");
-
-      purple_conv_chat_write(chat_p, curr_muc_member_p->handle, xmlnode_get_data(body_node_p), PURPLE_MESSAGE_SEND, time((void *) 0));
+      body_data = xmlnode_get_data(body_node_p);
+      purple_conv_chat_write(chat_p, curr_muc_member_p->handle, body_data, PURPLE_MESSAGE_SEND, time((void *) 0));
+      g_free(body_data);
+      body_data = (void *) 0;
       continue;
     }
 
@@ -1651,6 +1654,7 @@ cleanup:
   g_free(db_fn_omemo);
   axc_context_destroy_all(axc_ctx_p);
   g_free(tempxml);
+  g_free(body_data);
   omemo_devicelist_destroy(user_dl_p);
 }
 
@@ -1719,6 +1723,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
   const char * buddy_nick = (void *) 0;
   xmlnode * plaintext_msg_node_p = (void *) 0;
   char * recipient_bare_jid = (void *) 0;
+  char * body_data = (void *) 0;
   PurpleConversation * conv_p = (void *) 0;
   JabberChat * muc_p = (void *) 0;
   JabberChatMember * muc_member_p = (void *) 0;
@@ -1892,7 +1897,8 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     if (!conv_p) {
       conv_p = purple_conversation_new(PURPLE_CONV_TYPE_IM, purple_connection_get_account(gc_p), recipient_bare_jid);
     }
-    purple_conversation_write(conv_p, uname, xmlnode_get_data(xmlnode_get_child(plaintext_msg_node_p, "body")), PURPLE_MESSAGE_SEND, time((void *) 0));
+    body_data = xmlnode_get_data(xmlnode_get_child(plaintext_msg_node_p, "body"));
+    purple_conversation_write(conv_p, uname, body_data, PURPLE_MESSAGE_SEND, time((void *) 0));
     *msg_stanza_pp = (void *) 0;
   } else {
     *msg_stanza_pp = plaintext_msg_node_p;
@@ -1917,6 +1923,7 @@ cleanup:
   g_free(uname);
   g_free(db_fn_omemo);
   g_free(recipient_bare_jid);
+  g_free(body_data);
   omemo_message_destroy(keytransport_msg_p);
   omemo_message_destroy(msg_p);
 }
