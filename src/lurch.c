@@ -312,9 +312,11 @@ static int lurch_msg_encrypt_for_addrs(omemo_message * om_msg_p, GList * addr_l_
       }
 
       ret_val = omemo_message_add_recipient(om_msg_p,
+					    curr_addr_p->jid,
                                             curr_addr_p->device_id,
                                             axc_buf_get_data(curr_key_ct_buf_p),
-                                            axc_buf_get_len(curr_key_ct_buf_p));
+                                            axc_buf_get_len(curr_key_ct_buf_p),
+					    0);
       if (ret_val) {
         err_msg_dbg = g_strdup_printf("failed to add recipient to omemo msg");
         goto cleanup;
@@ -562,10 +564,10 @@ cleanup:
   }
   omemo_bundle_destroy(om_bundle_p);
   g_free(tempxml);
-  free(pre_key_p);
-  free(signed_pre_key_p);
-  free(signature_p);
-  free(identity_key_p);
+  g_free(pre_key_p);
+  g_free(signed_pre_key_p);
+  g_free(signature_p);
+  g_free(identity_key_p);
   axc_buf_free(pre_key_buf_p);
   axc_buf_free(signed_pre_key_buf_p);
   axc_buf_free(signature_buf_p);
@@ -801,7 +803,9 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
   lurch_addr laddr = {0};
   axc_buf * key_ct_buf_p = (void *) 0;
   char * msg_xml = (void *) 0;
+  int len = 0;
   xmlnode * msg_node_p = (void *) 0;
+  char * msg_id = (void *) 0;
   void * jabber_handle_p = purple_plugins_find_with_id("prpl-jabber");
 
   uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
@@ -842,9 +846,21 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
     goto cleanup;
   }
 
-  ret_val = omemo_message_create(own_id, &crypto, &msg_p);
+  //compose a message without body as template
+  msg_node_p = xmlnode_new("message");
+  xmlnode_set_attrib(msg_node_p, "type", "chat");
+  msg_id = jabber_get_next_id(js_p);
+  xmlnode_set_attrib(msg_node_p, "id", msg_id);
+  xmlnode_set_attrib(msg_node_p, "to", from);
+
+  msg_xml = xmlnode_to_str(msg_node_p, &len);
+  ret_val = omemo_message_prepare_encryption(msg_xml, own_id, &crypto, OMEMO_STRIP_ALL, &msg_p);
+  xmlnode_free(msg_node_p);
+  msg_node_p = (void *) 0;
+  g_free(msg_xml);
+  msg_xml = (void *) 0;
   if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to create omemo msg");
+    err_msg_dbg = g_strdup_printf("failed to create omemo key transport msg for %s", from);
     goto cleanup;
   }
 
@@ -859,9 +875,11 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
   }
 
   ret_val = omemo_message_add_recipient(msg_p,
-                                        addr.device_id,
+					laddr.name,
+                                        laddr.device_id,
                                         axc_buf_get_data(key_ct_buf_p),
-                                        axc_buf_get_len(key_ct_buf_p));
+                                        axc_buf_get_len(key_ct_buf_p),
+					1);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to add %s:%i as recipient to message", addr.name, addr.device_id);
     goto cleanup;
@@ -891,6 +909,7 @@ cleanup:
   }
   g_free(laddr.jid);
   g_free(uname);
+  g_free(msg_id);
   axc_context_destroy_all(axc_ctx_p);
   omemo_message_destroy(msg_p);
   axc_buf_free(key_ct_buf_p);
@@ -1813,7 +1832,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     goto cleanup;
   }
 
-  ret_val = omemo_message_get_encrypted_key(msg_p, own_id, &key_p, &key_len);
+  ret_val = omemo_message_get_encrypted_key(msg_p, uname, own_id, &key_p, &key_len);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to get key for own id %i", own_id);
     goto cleanup;
@@ -1918,7 +1937,7 @@ cleanup:
   free(sender_name);
   axc_buf_free(key_decrypted_p);
   axc_buf_free(key_buf_p);
-  free(key_p);
+  g_free(key_p);
   axc_context_destroy_all(axc_ctx_p);
   g_free(uname);
   g_free(db_fn_omemo);
