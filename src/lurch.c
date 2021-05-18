@@ -143,7 +143,7 @@ static char * lurch_queue_make_key_string_s(const char * name, const char * devi
  * Does the first-time install of the axc DB.
  * As specified in OMEMO, it checks if the generated device ID already exists.
  * Therefore, it should be called at a point in time when other entries exist.
- * 
+ *
  * If an initialized DB already exists, this function exits with success without doing anything.
  * This is checked by trying to retrieve the device ID from it.
  *
@@ -1285,6 +1285,30 @@ cleanup:
 }
 
 /**
+ * Remove plaintext children of the original message stanza, then clone all children nodes of the encrypted
+ * message and insert into the original message stanza.
+ *
+ * @param encrypted_msg_p Pointer to an xmlnode derived from omemo_message_export_encrypted() .
+ * @param msg_stanza_pp   Pointer to the pointer to the <message> stanza.
+ *
+ */
+
+static void replace_msg_children(const xmlnode * encrypted_msg_p, xmlnode ** msg_stanza_pp) {
+  if ( !encrypted_msg_p || !msg_stanza_pp || !(*msg_stanza_pp)) {
+    return;
+  }
+  /* strip all possible child node first, as they should already exist inside `encrypted_msg` */
+  xmlnode * node = (*msg_stanza_pp)->child;
+  for (; node; node = (*msg_stanza_pp)->child) {
+    xmlnode_free(node);
+  }
+
+  for (node = encrypted_msg_p->child; node; node = node->next) {
+    xmlnode_insert_child(*msg_stanza_pp, xmlnode_copy(node));
+  }
+}
+
+/**
  * Does the final steps of encrypting the message.
  * If all devices have sessions, does the actual encrypting.
  * If not, saves it and sends bundle request to the missing devices so that the message can be sent at a later time.
@@ -1332,7 +1356,8 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
 
     omemo_message_destroy(om_msg_p);
     temp_node_p = xmlnode_from_str(xml, -1);
-    *msg_stanza_pp = temp_node_p;
+    replace_msg_children(temp_node_p, msg_stanza_pp);
+    xmlnode_free(temp_node_p);
   } else {
     ret_val = lurch_queued_msg_create(om_msg_p, addr_l_p, no_sess_l_p, &qmsg_p);
     if (ret_val) {
@@ -1845,6 +1870,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
         if (ret_val == SG_ERR_DUPLICATE_MESSAGE && !g_strcmp0(sender, uname) && !g_strcmp0(recipient_bare_jid, uname)) {
           // in combination with message carbons, sending a message to your own account results in it arriving twice
           purple_debug_warning("lurch", "ignoring decryption error due to a duplicate message from own account to own account\n");
+	  xmlnode_free(*msg_stanza_pp);
           *msg_stanza_pp = (void *) 0;
           goto cleanup;
         } else {
@@ -1892,6 +1918,7 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
 
   // libpurple doesn't know what to do with incoming messages addressed to someone else, so they need to be written to the conversation manually
   // incoming messages from the own account in MUCs are fine though
+  xmlnode_free(*msg_stanza_pp);
   if (!g_strcmp0(sender, uname) && !g_strcmp0(type, "chat")) {
     conv_p = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, recipient_bare_jid, purple_connection_get_account(gc_p));
     if (!conv_p) {
