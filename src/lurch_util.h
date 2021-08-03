@@ -2,6 +2,13 @@
 
 #include "axc.h"
 
+#define JABBER_PROTOCOL_ID "prpl-jabber"
+
+// see https://www.ietf.org/rfc/rfc3920.txt
+#define JABBER_MAX_LEN_NODE 1023
+#define JABBER_MAX_LEN_DOMAIN 1023
+#define JABBER_MAX_LEN_BARE JABBER_MAX_LEN_NODE + JABBER_MAX_LEN_DOMAIN + 1
+
 #define LURCH_PREF_ROOT              "/plugins/core/lurch"
 #define LURCH_PREF_AXC_LOGGING       LURCH_PREF_ROOT "/axc_logging"
 #define LURCH_PREF_AXC_LOGGING_LEVEL LURCH_PREF_AXC_LOGGING "/level"

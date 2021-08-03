@@ -30,13 +30,6 @@
 #define strnlen(a, b) (MIN(strlen(a), (b)))
 #endif
 
-#define JABBER_PROTOCOL_ID "prpl-jabber"
-
-// see https://www.ietf.org/rfc/rfc3920.txt
-#define JABBER_MAX_LEN_NODE 1023
-#define JABBER_MAX_LEN_DOMAIN 1023
-#define JABBER_MAX_LEN_BARE JABBER_MAX_LEN_NODE + JABBER_MAX_LEN_DOMAIN + 1
-
 #define LURCH_ERR_STRING_ENCRYPT "There was an error encrypting the message and it was not sent. " \
                                  "You can try again, or try to find the problem by looking at the debug log."
 #define LURCH_ERR_STRING_DECRYPT "There was an error decrypting an OMEMO message addressed to this device. " \
