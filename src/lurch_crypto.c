@@ -76,6 +76,7 @@ int lurch_crypto_encrypt_msg_for_addrs(omemo_message * om_msg_p, GList * addr_l_
       err_msg_dbg = g_strdup_printf("failed to check if session exists, aborting");
       goto cleanup;
     } else if (!ret_val) {
+      purple_debug_warning("lurch", "%s: no initiated session for recipient %s:%d, skipping\n", __func__, addr.name, addr.device_id);
       continue;
     } else {
       ret_val = lurch_crypto_encrypt_key(curr_addr_p,
