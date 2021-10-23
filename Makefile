@@ -219,6 +219,12 @@ $(BDIR)/test_lurch_api: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_
 	-Wl,--wrap=lurch_util_fp_get_printable
 	sh -c "set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n'" # filter annoying and irrelevant glib output
 
+$(BDIR)/test_lurch_crypto: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lurch_crypto.o
+	$(CC) $(CFLAGS) $(CPPFLAGS) -O0 --coverage $^ $(PURPLE_DIR)/libjabber.so.0 -o $@ $(LDFLAGS_T) \
+	-Wl,--wrap=axc_message_encrypt_and_serialize \
+	-Wl,--wrap=axc_session_exists_initiated
+	sh -c "set -o pipefail; $@ 2>&1 | grep -Ev ".*CRITICAL.*" | tr -s '\n'" # filter annoying and irrelevant glib output
+
 test: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(TEST_TARGETS)
 
 coverage: test
