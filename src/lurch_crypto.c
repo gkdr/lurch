@@ -54,7 +54,7 @@ cleanup:
   return ret_val;
 }
 
-int lurch_crypto_encrypt_msg_for_addrs(omemo_message * om_msg_p, GList * addr_l_p, axc_context * axc_ctx_p) {
+int lurch_crypto_encrypt_msg_for_addrs(omemo_message * om_msg_p, GList * addr_l_p, GList * no_sess_l_p, axc_context * axc_ctx_p) {
   int ret_val = 0;
   char * err_msg_dbg = (void *) 0;
 
@@ -89,19 +89,17 @@ int lurch_crypto_encrypt_msg_for_addrs(omemo_message * om_msg_p, GList * addr_l_
         goto cleanup;
       }
 
-      // FIXME: here i need to know whether to add prekey or not, so probably more info from the lurch_queued_msg is needed besides the addr_l_pointer, the map *might* work, or going through the no_session_l_p and building a local map, skipping those entries in the regular list
-      // FIXME: in any case, the libomemo shit needs to be implemented first
-
-      // TODO: pass no_session_l_p to this function too
-      // TODO: use g_list_find() to check whether curr_l_p ist contained in that list (since it's just a subset of addr_l_p)
-      // TODO: if it is, call the omemo_message function which adds with prekey instead
-
-      // TODO: take all lurch_msg_* functions and pull them out into their own module
-      // TODO: write a test for this function checking above behaviour
-      ret_val = omemo_message_add_recipient(om_msg_p,
-                                            curr_addr_p->device_id,
-                                            axc_buf_get_data(curr_key_ct_buf_p),
-                                            axc_buf_get_len(curr_key_ct_buf_p));
+      if (g_list_find(no_sess_l_p, curr_addr_p)) {
+        ret_val = omemo_message_add_recipient_w_prekey(om_msg_p,
+                                                       curr_addr_p->device_id,
+                                                       axc_buf_get_data(curr_key_ct_buf_p),
+                                                       axc_buf_get_len(curr_key_ct_buf_p));
+      } else {
+        ret_val = omemo_message_add_recipient(om_msg_p,
+                                              curr_addr_p->device_id,
+                                              axc_buf_get_data(curr_key_ct_buf_p),
+                                              axc_buf_get_len(curr_key_ct_buf_p));
+      }
       if (ret_val) {
         err_msg_dbg = g_strdup_printf("failed to add recipient to omemo msg");
         goto cleanup;

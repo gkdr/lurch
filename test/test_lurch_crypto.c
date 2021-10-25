@@ -48,7 +48,7 @@ int __wrap_axc_session_exists_initiated(const axc_address * addr_p, axc_context 
 static void test_lurch_crypto_encrypt_msg_for_addrs_empty_list(void ** state) {
     (void) state;
 
-    assert_return_code(lurch_crypto_encrypt_msg_for_addrs(NULL, NULL, NULL), 0);
+    assert_return_code(lurch_crypto_encrypt_msg_for_addrs(NULL, NULL, NULL, NULL), 0);
 }
 
 /**
@@ -66,7 +66,7 @@ static void test_lurch_crypto_encrypt_msg_for_addrs_no_sessions(void ** state) {
     expect_string(__wrap_axc_session_exists_initiated, addr_p, &test_addr);
     will_return(__wrap_axc_session_exists_initiated, 0);
 
-    assert_return_code(lurch_crypto_encrypt_msg_for_addrs(NULL, g_list_append(NULL, &test_addr), NULL), 0);
+    assert_return_code(lurch_crypto_encrypt_msg_for_addrs(NULL, g_list_append(NULL, &test_addr), NULL, NULL), 0);
 }
 
 /**
@@ -85,7 +85,7 @@ static void test_lurch_crypto_encrypt_msg_for_addrs_err(void ** state) {
     expect_string(__wrap_axc_session_exists_initiated, addr_p, &test_addr);
     will_return(__wrap_axc_session_exists_initiated, wanted_errcode);
 
-    assert_int_equal(lurch_crypto_encrypt_msg_for_addrs(NULL, g_list_append(NULL, &test_addr), NULL), wanted_errcode);
+    assert_int_equal(lurch_crypto_encrypt_msg_for_addrs(NULL, g_list_append(NULL, &test_addr), NULL, NULL), wanted_errcode);
 }
 
 /**
@@ -110,7 +110,7 @@ static void test_lurch_crypto_encrypt_msg_for_addrs_happy(void ** state) {
     omemo_message * om_msg_p;
     assert_int_equal(omemo_message_create(789, &crypto, &om_msg_p), 0);
 
-    assert_return_code(lurch_crypto_encrypt_msg_for_addrs(om_msg_p, g_list_append(NULL, &test_addr), NULL), 0);
+    assert_return_code(lurch_crypto_encrypt_msg_for_addrs(om_msg_p, g_list_append(NULL, &test_addr), NULL, NULL), 0);
 
     uint8_t * key_buf_p = NULL;
     size_t key_buf_size = 234;

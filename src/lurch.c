@@ -524,35 +524,33 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
 
   (void) g_hash_table_replace(qmsg_p->sess_handled_p, addr_key, addr_key);
 
-  if (lurch_queued_msg_is_handled(qmsg_p)) {
-    msg_handled = 1;
+  if (!lurch_queued_msg_is_handled(qmsg_p)) {
+    goto cleanup;
   }
 
-  if (msg_handled) {
-    ret_val = lurch_crypto_encrypt_msg_for_addrs(qmsg_p->om_msg_p, qmsg_p->recipient_addr_l_p, axc_ctx_p);
-    if (ret_val) {
-      err_msg_dbg = "failed to encrypt the symmetric key";
-      goto cleanup;
-    }
-
-    ret_val = lurch_export_encrypted(qmsg_p->om_msg_p, &msg_xml);
-    if (ret_val) {
-      err_msg_dbg = "failed to export the message to xml";
-      goto cleanup;
-    }
-
-    msg_node_p = xmlnode_from_str(msg_xml, -1);
-    if (!msg_node_p) {
-      err_msg_dbg = "failed to parse xml from string";
-      ret_val = LURCH_ERR;
-      goto cleanup;
-    }
-
-    purple_debug_info("lurch", "sending encrypted msg\n");
-    purple_signal_emit(purple_plugins_find_with_id("prpl-jabber"), "jabber-sending-xmlnode", js_p->gc, &msg_node_p);
-
-    lurch_queued_msg_destroy(qmsg_p);
+  ret_val = lurch_crypto_encrypt_msg_for_addrs(qmsg_p->om_msg_p, qmsg_p->recipient_addr_l_p, qmsg_p->no_sess_l_p, axc_ctx_p);
+  if (ret_val) {
+    err_msg_dbg = "failed to encrypt the symmetric key";
+    goto cleanup;
   }
+
+  ret_val = lurch_export_encrypted(qmsg_p->om_msg_p, &msg_xml);
+  if (ret_val) {
+    err_msg_dbg = "failed to export the message to xml";
+    goto cleanup;
+  }
+
+  msg_node_p = xmlnode_from_str(msg_xml, -1);
+  if (!msg_node_p) {
+    err_msg_dbg = "failed to parse xml from string";
+    ret_val = LURCH_ERR;
+    goto cleanup;
+  }
+
+  purple_debug_info("lurch", "sending encrypted msg\n");
+  purple_signal_emit(purple_plugins_find_with_id("prpl-jabber"), "jabber-sending-xmlnode", js_p->gc, &msg_node_p);
+
+  lurch_queued_msg_destroy(qmsg_p);
 
 cleanup:
   if (err_msg_conv) {
@@ -1072,7 +1070,7 @@ static int lurch_msg_finalize_encryption(JabberStream * js_p, axc_context * axc_
   }
 
   if (!no_sess_l_p) {
-    ret_val = lurch_crypto_encrypt_msg_for_addrs(om_msg_p, addr_l_p, axc_ctx_p);
+    ret_val = lurch_crypto_encrypt_msg_for_addrs(om_msg_p, addr_l_p, no_sess_l_p, axc_ctx_p);
     if (ret_val) {
       err_msg_dbg = g_strdup_printf("failed to encrypt symmetric key for addrs");
       goto cleanup;

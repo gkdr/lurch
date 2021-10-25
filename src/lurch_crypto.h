@@ -39,7 +39,9 @@ int lurch_crypto_encrypt_key(const lurch_addr * recipient_addr_p,
  *
  * @param om_msg_p Pointer to the omemo message.
  * @param addr_l_p Pointer to the head of a list of the intended recipients' lurch_addrs.
+ * @param no_sess_l_p Pointer to the head of a list of the subset of the inteded recipients for which a session was not yet
+ *      established when the message was written.
  * @param axc_ctx_p Pointer to the axc_context to use.
  * @return 0 on success, negative on error.
  */
-int lurch_crypto_encrypt_msg_for_addrs(omemo_message * om_msg_p, GList * addr_l_p, axc_context * axc_ctx_p);
+int lurch_crypto_encrypt_msg_for_addrs(omemo_message * om_msg_p, GList * addr_l_p, GList * no_sess_l_p, axc_context * axc_ctx_p);
