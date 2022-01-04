@@ -1,4 +1,5 @@
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
@@ -90,6 +91,7 @@ static void test_lurch_crypto_encrypt_msg_for_addrs_err(void ** state) {
 
 /**
  * Encrypts the OMEMO key with the recipients Signal session and adds a recipient element to the omemo message.
+ * Since the session already existed, it is not marked as a "prekey".
  */
 static void test_lurch_crypto_encrypt_msg_for_addrs_happy(void ** state) {
     (void) state;
@@ -116,7 +118,47 @@ static void test_lurch_crypto_encrypt_msg_for_addrs_happy(void ** state) {
     size_t key_buf_size = 234;
     assert_int_equal(omemo_message_get_encrypted_key(om_msg_p, test_addr.device_id, &key_buf_p, &key_buf_size), 0);
     assert_non_null(key_buf_p);
-    assert_int_equal(key_buf_size, 0); // the mock enctyption returns a buffer of length 0
+    assert_int_equal(key_buf_size, 0); // the mock encryption returns a buffer of length 0
+
+    bool is_prekey = true;
+    assert_int_equal(omemo_message_is_encrypted_key_prekey(om_msg_p, test_addr.device_id, &is_prekey), 0);
+    assert_false(is_prekey);
+}
+
+/**
+ * Encrypts the OMEMO key with the recipients Signal session and adds a recipient element to the omemo message.
+ * Since the session did not exist yet, it is marked as a "prekey".
+ */
+static void test_lurch_crypto_encrypt_msg_for_addrs_prekey(void ** state) {
+    (void) state;
+
+    lurch_addr test_addr = {
+        .jid = "wanted@jabber.id",
+        .device_id = 1234
+    };
+
+    expect_function_call(__wrap_axc_session_exists_initiated);
+    expect_string(__wrap_axc_session_exists_initiated, addr_p, &test_addr);
+    will_return(__wrap_axc_session_exists_initiated, 1);
+
+    expect_function_call(__wrap_axc_message_encrypt_and_serialize);
+    expect_string(__wrap_axc_message_encrypt_and_serialize, name, test_addr.jid);
+    will_return(__wrap_axc_message_encrypt_and_serialize, 0);
+
+    omemo_message * om_msg_p;
+    assert_int_equal(omemo_message_create(789, &crypto, &om_msg_p), 0);
+
+    assert_return_code(lurch_crypto_encrypt_msg_for_addrs(om_msg_p, g_list_append(NULL, &test_addr), g_list_append(NULL, &test_addr), NULL), 0);
+
+    uint8_t * key_buf_p = NULL;
+    size_t key_buf_size = 234;
+    assert_int_equal(omemo_message_get_encrypted_key(om_msg_p, test_addr.device_id, &key_buf_p, &key_buf_size), 0);
+    assert_non_null(key_buf_p);
+    assert_int_equal(key_buf_size, 0); // the mock encryption returns a buffer of length 0
+
+    bool is_prekey = false;
+    assert_int_equal(omemo_message_is_encrypted_key_prekey(om_msg_p, test_addr.device_id, &is_prekey), 0);
+    assert_true(is_prekey);
 }
 
 int main(void) {
@@ -124,7 +166,8 @@ int main(void) {
         cmocka_unit_test(test_lurch_crypto_encrypt_msg_for_addrs_empty_list),
         cmocka_unit_test(test_lurch_crypto_encrypt_msg_for_addrs_no_sessions),
         cmocka_unit_test(test_lurch_crypto_encrypt_msg_for_addrs_err),
-        cmocka_unit_test(test_lurch_crypto_encrypt_msg_for_addrs_happy)
+        cmocka_unit_test(test_lurch_crypto_encrypt_msg_for_addrs_happy),
+        cmocka_unit_test(test_lurch_crypto_encrypt_msg_for_addrs_prekey)
     };
 
     return cmocka_run_group_tests_name("lurch_crypto", tests, NULL, NULL);
