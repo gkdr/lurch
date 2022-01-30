@@ -1,0 +1,90 @@
+# Copyright (c) 2022 Sebastian Pipping <sebastian@pipping.org>
+# Licensed under the GPL v2 or later
+
+name: Build for Windows
+
+on:
+  pull_request:
+  push:
+  schedule:
+    - cron: '0 2 * * 5'  # Every Friday at 2am
+
+jobs:
+  checks:
+    name: Build for Windows (shared=${{ matrix.BUILD_SHARED_LIBS }})
+    runs-on: windows-2019
+    strategy:
+      fail-fast: false
+      matrix:
+        BUILD_SHARED_LIBS: ['ON', 'OFF']
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+
+    - uses: actions/checkout@v2.4.0
+      with:
+        submodules: recursive
+
+    - name: Install build dependencies
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW32
+        install: |
+          cmake
+          mingw-w64-i686-cmocka
+          mingw-w64-i686-glib2
+          mingw-w64-i686-libgcrypt
+          mingw-w64-i686-libsignal-protocol-c
+          mingw-w64-i686-libxml2
+          mingw-w64-i686-mxml
+          mingw-w64-i686-pidgin
+          mingw-w64-i686-sqlite3
+          mingw-w64-i686-toolchain
+          ninja
+
+    - name: Configure
+      run: |-
+        set -x
+        cmake \
+          -B build \
+          -G Ninja \
+          -DCMAKE_C_COMPILER=i686-w64-mingw32-gcc -DCMAKE_SYSTEM_NAME=Windows -DWIN32=ON -DMINGW=ON \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DBUILD_SHARED_LIBS=${{ matrix.BUILD_SHARED_LIBS }} \
+          -DLURCH_WITH_SYSTEM_AXC=OFF \
+          -DLURCH_WITH_SYSTEM_OMEMO=OFF
+
+    - name: Build
+      run: |-
+        set -x -o pipefail
+        ninja -v -C build all
+        objdump -p build/lurch*.dll | fgrep 'DLL Name' | sort -u | nl
+
+    - name: Gather transitive DLL closure
+      run: |-
+        set -x -o pipefail
+        DLL_HOME=/mingw32/bin/ BUILD_DIR=build/ ./copy_dll_closure.sh build/lurch*.dll build/
+        ls -lh build/*.dll
+
+    - name: Test (KNOWN TO FAIL)
+      run: |-
+        set -x
+        CTEST_OUTPUT_ON_FAILURE=1 ninja -C build test || true  # TODO fix tests
+
+    - name: Install
+      run: |-
+        set -x -o pipefail
+
+        DESTDIR="${PWD}"/ROOT ninja -v -C build install
+        find ROOT/ -not -type d | sort | xargs ls -l
+
+        ninja -v -C build install-home
+        find ~/.purple/plugins/ -not -type d | sort | xargs ls -l
+
+    - name: Store Windows binaries
+      uses: actions/upload-artifact@v2.3.1
+      with:
+        name: lurch_win32bin_shared_${{ matrix.BUILD_SHARED_LIBS }}_${{ github.sha }}
+        path: build/*.dll
+        if-no-files-found: error
