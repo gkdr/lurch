@@ -90,7 +90,7 @@ static void test_lurch_crypto_encrypt_msg_for_addrs_err(void ** state) {
 }
 
 /**
- * Encrypts the OMEMO key with the recipients Signal session and adds a recipient element to the omemo message.
+ * Encrypts the OMEMO key with the recipient's Signal session and adds a recipient element to the omemo message.
  * Since the session already existed, it is not marked as a "prekey".
  */
 static void test_lurch_crypto_encrypt_msg_for_addrs_happy(void ** state) {
@@ -126,7 +126,7 @@ static void test_lurch_crypto_encrypt_msg_for_addrs_happy(void ** state) {
 }
 
 /**
- * Encrypts the OMEMO key with the recipients Signal session and adds a recipient element to the omemo message.
+ * Encrypts the OMEMO key with the recipient's Signal session and adds a recipient element to the omemo message.
  * Since the session did not exist yet, it is marked as a "prekey".
  */
 static void test_lurch_crypto_encrypt_msg_for_addrs_prekey(void ** state) {
