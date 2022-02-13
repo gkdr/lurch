@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [UNRELEASED]
+### Changed
+- Migrate build system from a Makefile to CMake ([#177](https://github.com/gkdr/lurch/pull/177)) (thanks, [@hartwork](https://github.com/hartwork)!)
+
+### Infrastructure
+- Cover Linux build by GitHub Actions CI ([#177](https://github.com/gkdr/lurch/pull/177)) (thanks, [@hartwork](https://github.com/hartwork)!)
+- Cover Windows build by GitHub Actions CI using msys2 ([#177](https://github.com/gkdr/lurch/pull/177)) (thanks, [@hartwork](https://github.com/hartwork)!)
+
 ## [0.7.0] - 2021-02-12
 ### Added
 - This file.
