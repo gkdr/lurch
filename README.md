@@ -52,8 +52,8 @@ The last command compiles the whole thing and copies the plugin into your local 
 The next time you start Pidgin, or another libpurple client, you should be able to activate it in the "Plugins" window.
 
 ##### 2B. OR: Install from a community repo
-* Arch - AUR: https://aur.archlinux.org/packages/libpurple-lurch-git/
-* Fedora - COPR:  https://copr.fedorainfracloud.org/coprs/treba/pidgin-lurch/
+* Arch - AUR: [libpurple-lurch](https://aur.archlinux.org/packages/libpurple-lurch/) or [libpurple-lurch-git](https://aur.archlinux.org/packages/libpurple-lurch-git/)
+* Fedora - COPR:  [pidgin-lurch](https://copr.fedorainfracloud.org/coprs/treba/pidgin-lurch/)
 
 
 ### Windows
