@@ -1,0 +1,107 @@
+# Copyright (c) 2022 Sebastian Pipping <sebastian@pipping.org>
+# Licensed under the GPL v2 or later
+
+name: Build for Linux
+
+on:
+  pull_request:
+  push:
+  schedule:
+    - cron: '0 2 * * 5'  # Every Friday at 2am
+
+jobs:
+  checks:
+    name: Build for Linux (shared=${{ matrix.BUILD_SHARED_LIBS }}, syslibs=${{ matrix.syslibs }})
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        BUILD_SHARED_LIBS: ['ON', 'OFF']
+        syslibs: ['ON', 'OFF']
+    steps:
+
+    - uses: actions/checkout@v2.4.0
+      with:
+        submodules: recursive
+
+    - name: Install build dependencies (but axc and libomemo)
+      run: |-
+        set -x
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends -V \
+            gcovr \
+            libcmocka-dev \
+            libgcrypt20-dev \
+            libglib2.0-dev \
+            libmxml-dev \
+            libpurple-dev \
+            libsignal-protocol-c-dev \
+            libsqlite3-dev \
+            libxml2-dev \
+            ninja-build
+
+    - name: Install build dependency axc system-wide
+      if: matrix.syslibs == 'ON'
+      run: |-
+        set -x
+        cd lib/axc
+        cmake \
+          -B build \
+          -G Ninja \
+          -DBUILD_SHARED_LIBS=${{ matrix.BUILD_SHARED_LIBS }} \
+          -DCMAKE_INSTALL_PREFIX=/usr
+        ninja -v -C build all
+        sudo ninja -v -C build install
+
+    - name: Install build dependency libomemo system-wide
+      if: matrix.syslibs == 'ON'
+      run: |-
+        set -x
+        cd lib/libomemo
+        cmake \
+          -B build \
+          -G Ninja \
+          -DBUILD_SHARED_LIBS=${{ matrix.BUILD_SHARED_LIBS }} \
+          -DCMAKE_INSTALL_PREFIX=/usr
+        ninja -v -C build all
+        sudo ninja -v -C build install
+
+    - name: Configure
+      run: |-
+        set -x
+        cmake \
+          -B build \
+          -G Ninja \
+          -DBUILD_SHARED_LIBS=${{ matrix.BUILD_SHARED_LIBS }} \
+          -DLURCH_WITH_SYSTEM_AXC=${{ matrix.syslibs }} \
+          -DLURCH_WITH_SYSTEM_OMEMO=${{ matrix.syslibs }} \
+          -D_LURCH_WITH_COVERAGE=ON
+
+    - name: Build
+      run: |-
+        set -x -o pipefail
+        ninja -v -C build all
+        readelf -d build/lurch.so | grep 'NEEDED\|RUNPATH' | sort
+
+    - name: Test
+      run: |-
+        set -x
+        CTEST_OUTPUT_ON_FAILURE=1 ninja -C build test
+        ninja -C build coverage
+
+    - name: Install
+      run: |-
+        set -x -o pipefail
+
+        DESTDIR="${PWD}"/ROOT ninja -v -C build install
+        find ROOT/ -not -type d | sort | xargs ls -l
+
+        ninja -v -C build install-home
+        find ~/.purple/plugins/ -not -type d | sort | xargs ls -l
+
+    - name: Store coverage HTML report
+      uses: actions/upload-artifact@v2.3.1
+      with:
+        name: lurch_coverage_shared_${{ matrix.BUILD_SHARED_LIBS }}_syslibs_${{ matrix.syslibs }}_${{ github.sha }}
+        path: build/coverage*.html
+        if-no-files-found: error

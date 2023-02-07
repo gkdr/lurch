@@ -43,6 +43,7 @@ sudo dnf install git cmake libpurple-devel mxml-devel libxml2-devel libsqlite3x-
 git clone https://github.com/gkdr/lurch/
 cd lurch
 git submodule update --init --recursive
+cmake .
 make install-home
 ```
 If you just pull a newer version (`git pull`), remember to also update the submodules as they might have changed!
@@ -50,6 +51,32 @@ If you just pull a newer version (`git pull`), remember to also update the submo
 The last command compiles the whole thing and copies the plugin into your local _libpurple_ plugin directory.
 
 The next time you start Pidgin, or another libpurple client, you should be able to activate it in the "Plugins" window.
+
+If you would like to tweak compile time options, here's a list of the available knobs:
+
+```console
+# rm -f CMakeCache.txt ; cmake -D_LURCH_HELP=ON -LH . 2>/dev/null | grep -B1 ':.*=' | sed 's,^--$,,'
+// Build shared libraries (rather than static ones)
+BUILD_SHARED_LIBS:BOOL=ON
+
+// Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel ...
+CMAKE_BUILD_TYPE:STRING=
+
+// Install path prefix, prepended onto install directories.
+CMAKE_INSTALL_PREFIX:PATH=/usr/local
+
+// Install build artifacts
+LURCH_INSTALL:BOOL=ON
+
+// Use system-wide axc (rather than the bundled copy)
+LURCH_WITH_SYSTEM_AXC:BOOL=ON
+
+// Use system-wide libomemo (rather than the bundled copy)
+LURCH_WITH_SYSTEM_OMEMO:BOOL=ON
+
+// Build test suite (depends on cmocka)
+LURCH_WITH_TESTS:BOOL=ON
+```
 
 ##### 2B. OR: Install from a community repo
 * Arch - AUR: https://aur.archlinux.org/packages/libpurple-lurch-git/
