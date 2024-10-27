@@ -5,14 +5,6 @@
 
 #include "lurch_util.h"
 
-/**
- * Log wrapper for AXC
- *
- * @param level	an AXC_LOG level
- * @param msg 	the log message
- * @param len	the length of the message
- * @param ctx_p	the axc context
- */
 void lurch_util_axc_log_func(int level, const char * msg, size_t len, void * user_data) {
   (void) len;
   axc_context * ctx_p = (axc_context *) user_data;

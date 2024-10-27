@@ -55,3 +55,13 @@ char * lurch_util_uname_get_db_fn(const char * uname, const char * which);
  * @return A newly allocated string which contains the fingerprint in printable format, or NULL. g_free() when done.
  */
 char * lurch_util_fp_get_printable(axc_buf * key_buf_p);
+
+/**
+ * Log wrapper for AXC. This should only be needed internally, but it's not exactly a secret so it's exposed for unit testing.
+ *
+ * @param level	an AXC_LOG level
+ * @param msg 	the log message
+ * @param len	the length of the message
+ * @param ctx_p	the axc context
+ */
+void lurch_util_axc_log_func(int level, const char * msg, size_t len, void * user_data);
