@@ -454,7 +454,6 @@ static void lurch_bundle_request_cb(JabberStream * js_p, const char * from,
   char * recipient = (void *) 0;
   xmlnode * pubsub_node_p = (void *) 0;
   xmlnode * items_node_p = (void *) 0;
-  int msg_handled = 0;
   char * addr_key = (void *) 0;
   char * msg_xml = (void *) 0;
   xmlnode * msg_node_p = (void *) 0;

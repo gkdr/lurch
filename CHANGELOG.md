@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Expose `lurch_util_axc_log_func()` in the `.h` file so its unit tests can properly access it, fixing a new compile error.
+- Remove unused variable from `lurch_bundle_request_cb()`.
 
 
 ## [0.7.0] - 2021-02-12
