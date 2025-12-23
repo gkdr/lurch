@@ -4,7 +4,6 @@ CC ?= gcc
 
 PKG_CONFIG ?= pkg-config
 XML2_CONFIG ?= xml2-config
-LIBGCRYPT_CONFIG ?= libgcrypt-config
 
 MKDIR = mkdir
 MKDIR_P = mkdir -p
@@ -38,7 +37,7 @@ LIBSIGNAL_PROTOCOL_LDFLAGS = $(shell $(PKG_CONFIG) --cflags libsignal-protocol-c
 XML2_CFLAGS ?= $(shell $(XML2_CONFIG) --cflags)
 XML2_LDFLAGS ?= $(shell $(XML2_CONFIG) --libs)
 
-LIBGCRYPT_LDFLAGS ?= $(shell $(LIBGCRYPT_CONFIG) --libs)
+LIBGCRYPT_LDFLAGS ?= $(shell $(PKG_CONFIG) --libs libgcrypt)
 
 USE_DYNAMIC_LIBS=libsignal-protocol-c libaxc libomemo
 USE_DYNAMIC_LIBS:=$(shell pkg-config --exists $(USE_DYNAMIC_LIBS) && \
