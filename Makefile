@@ -228,6 +228,13 @@ $(BDIR)/test_lurch_crypto: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lur
 
 test: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(TEST_TARGETS)
 
+$(BDIR)/test_integration: $(BDIR)/lurch.so $(TDIR)/integration/test_harness.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(TDIR)/integration/test_harness.c \
+		-o $@ $(LDFLAGS) -lpurple
+
+test-integration: $(BDIR)/test_integration $(BDIR)/lurch.so
+	$(TDIR)/integration/run.sh
+
 coverage: test
 	gcovr -r . --html --html-details -o build/coverage.html
 	gcovr -r . -s
@@ -239,5 +246,5 @@ clean-all: clean
 	$(MAKE) -C "$(LOMEMO_DIR)" clean
 	$(MAKE) -C "$(AXC_DIR)" clean-all
 
-.PHONY: clean clean-all install install-home tarball test coverage
+.PHONY: clean clean-all install install-home tarball test test-integration coverage
 
