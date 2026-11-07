@@ -24,6 +24,7 @@ typedef enum {
 typedef struct {
   xmlnode * publish_node_p;
   lurch_pep_publish_stage stage;
+  gboolean multiple_items;
 } lurch_pep_publish_state;
 
 static void lurch_pep_publish_send(JabberStream * js_p, lurch_pep_publish_state * state_p);
@@ -34,9 +35,9 @@ static void lurch_pep_publish_state_destroy(lurch_pep_publish_state * state_p) {
 }
 
 /**
- * Creates a filled out data form requesting the 'open' access model.
+ * Creates a filled out data form requesting the 'open' access model, and optionally to keep as many items as possible.
  */
-static xmlnode * lurch_pep_open_access_form_create(const char * form_type) {
+static xmlnode * lurch_pep_open_access_form_create(const char * form_type, gboolean multiple_items) {
   xmlnode * form_p = xmlnode_new("x");
   xmlnode_set_namespace(form_p, "jabber:x:data");
   xmlnode_set_attrib(form_p, "type", "submit");
@@ -49,6 +50,12 @@ static xmlnode * lurch_pep_open_access_form_create(const char * form_type) {
   field_p = xmlnode_new_child(form_p, "field");
   xmlnode_set_attrib(field_p, "var", "pubsub#access_model");
   xmlnode_insert_data(xmlnode_new_child(field_p, "value"), "open", -1);
+
+  if (multiple_items) {
+    field_p = xmlnode_new_child(form_p, "field");
+    xmlnode_set_attrib(field_p, "var", "pubsub#max_items");
+    xmlnode_insert_data(xmlnode_new_child(field_p, "value"), "max", -1);
+  }
 
   return form_p;
 }
@@ -78,7 +85,7 @@ static void lurch_pep_reconfigure_send(JabberStream * js_p, lurch_pep_publish_st
 
   xmlnode * configure_node_p = xmlnode_new_child(pubsub_node_p, "configure");
   xmlnode_set_attrib(configure_node_p, "node", xmlnode_get_attrib(state_p->publish_node_p, "node"));
-  xmlnode_insert_child(configure_node_p, lurch_pep_open_access_form_create(FORM_TYPE_NODE_CONF));
+  xmlnode_insert_child(configure_node_p, lurch_pep_open_access_form_create(FORM_TYPE_NODE_CONF, state_p->multiple_items));
 
   jabber_iq_set_callback(jiq_p, lurch_pep_reconfigure_cb, state_p);
   jabber_iq_send(jiq_p);
@@ -127,11 +134,20 @@ static void lurch_pep_publish_send(JabberStream * js_p, lurch_pep_publish_state 
 
   if (state_p->stage != LURCH_PEP_PUBLISH_NO_OPTIONS) {
     xmlnode * options_node_p = xmlnode_new_child(pubsub_node_p, "publish-options");
-    xmlnode_insert_child(options_node_p, lurch_pep_open_access_form_create(FORM_TYPE_PUBLISH));
+    xmlnode_insert_child(options_node_p, lurch_pep_open_access_form_create(FORM_TYPE_PUBLISH, state_p->multiple_items));
   }
 
   jabber_iq_set_callback(jiq_p, lurch_pep_publish_cb, state_p);
   jabber_iq_send(jiq_p);
+}
+
+static void lurch_pep_publish_start(JabberStream * js_p, xmlnode * publish_node_p, gboolean multiple_items) {
+  lurch_pep_publish_state * state_p = g_new0(lurch_pep_publish_state, 1);
+  state_p->publish_node_p = publish_node_p;
+  state_p->stage = LURCH_PEP_PUBLISH_FIRST_TRY;
+  state_p->multiple_items = multiple_items;
+
+  lurch_pep_publish_send(js_p, state_p);
 }
 
 void lurch_util_pep_publish(JabberStream * js_p, xmlnode * publish_node_p) {
@@ -140,11 +156,11 @@ void lurch_util_pep_publish(JabberStream * js_p, xmlnode * publish_node_p) {
     xmlnode_set_attrib(item_node_p, "id", "current");
   }
 
-  lurch_pep_publish_state * state_p = g_new0(lurch_pep_publish_state, 1);
-  state_p->publish_node_p = publish_node_p;
-  state_p->stage = LURCH_PEP_PUBLISH_FIRST_TRY;
+  lurch_pep_publish_start(js_p, publish_node_p, FALSE);
+}
 
-  lurch_pep_publish_send(js_p, state_p);
+void lurch_util_pep_publish_multi(JabberStream * js_p, xmlnode * publish_node_p) {
+  lurch_pep_publish_start(js_p, publish_node_p, TRUE);
 }
 
 typedef struct {

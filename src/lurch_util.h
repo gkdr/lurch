@@ -89,6 +89,14 @@ void lurch_util_axc_log_func(int level, const char * msg, size_t len, void * use
 void lurch_util_pep_publish(JabberStream * js_p, xmlnode * publish_node_p);
 
 /**
+ * Same as lurch_util_pep_publish(), but for a node with multiple items. Its <item> needs an ID, which is left as it is.
+ *
+ * @param js_p The JabberStream to use.
+ * @param publish_node_p The <publish> node. Ownership is taken, also on failure.
+ */
+void lurch_util_pep_publish_multi(JabberStream * js_p, xmlnode * publish_node_p);
+
+/**
  * Requests all items of a PEP node, unlike jabber_pep_request_item(), which only asks for the newest one. That is not
  * necessarily the one with the ID "current", if some client published with another ID.
  *

@@ -25,6 +25,7 @@
 #include "lurch_api.h"
 #include "lurch_cmd_ui.h"
 #include "lurch_crypto.h"
+#include "lurch_om2.h"
 #include "lurch_util.h"
 
 #ifdef _WIN32
@@ -1145,6 +1146,12 @@ static void lurch_account_connect_cb(PurpleAccount * acc_p) {
 
   uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
   lurch_devicelist_fetch(js_p, uname);
+
+  // the identity key is shared, so it has to exist already
+  if (!uninstall && !lurch_axc_prepare(uname)) {
+    lurch_om2_account_connected(js_p);
+  }
+
   g_free(uname);
 }
 
@@ -1247,7 +1254,6 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
   PurpleAccount * acc_p = (void *) 0;
   char * uname = (void *) 0;
   char * db_fn_omemo = (void *) 0;
-  const char * to = (void *) 0;
   omemo_devicelist * dl_p = (void *) 0;
   GList * recipient_dl_p = (void *) 0;
   omemo_devicelist * user_dl_p = (void *) 0;
@@ -1258,6 +1264,7 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
   GList * addr_l_p = (void *) 0;
   char * recipient = (void *) 0;
   char * tempxml = (void *) 0;
+  char * msg_xml = (void *) 0;
 
   recipient = jabber_get_bare_jid(xmlnode_get_attrib(*msg_stanza_pp, "to"));
 
@@ -1285,40 +1292,43 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
     err_msg_dbg = g_strdup_printf("failed to get device id");
     goto cleanup;
   }
-  tempxml = xmlnode_to_str(*msg_stanza_pp, &len);
-  ret_val = omemo_message_prepare_encryption(tempxml, own_id, &crypto, OMEMO_STRIP_ALL, &msg_p);
-  g_free(tempxml);
-  tempxml = (void *) 0;
-  if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to construct omemo message");
-    goto cleanup;
-  }
-
-  to = omemo_message_get_recipient_name_bare(msg_p);
 
   // determine if recipient is omemo user
-  ret_val = omemo_storage_user_devicelist_retrieve(to, db_fn_omemo, &dl_p);
+  ret_val = omemo_storage_user_devicelist_retrieve(recipient, db_fn_omemo, &dl_p);
   if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to retrieve devicelist for %s", to);
+    err_msg_dbg = g_strdup_printf("failed to retrieve devicelist for %s", recipient);
     goto cleanup;
   }
 
   ret_val = omemo_devicelist_export(dl_p, &tempxml);
   if(ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to export devicelist for %s", to);
+    err_msg_dbg = g_strdup_printf("failed to export devicelist for %s", recipient);
     goto cleanup;
   }
-  purple_debug_info("lurch", "retrieved devicelist for %s:\n%s\n", to, tempxml);
-
+  purple_debug_info("lurch", "retrieved devicelist for %s:\n%s\n", recipient, tempxml);
   recipient_dl_p = omemo_devicelist_get_id_list(dl_p);
+
+  ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &user_dl_p);
+  if (ret_val) {
+    err_msg_dbg = g_strdup_printf("failed to retrieve devicelist for %s", uname);
+    goto cleanup;
+  }
+  own_dl_p = omemo_devicelist_get_id_list(user_dl_p);
+
+  // devices only using OMEMO 2 get their own message, which might be all of them
+  lurch_om2_message_send(purple_connection_get_protocol_data(gc_p), recipient, recipient_dl_p, own_dl_p, msg_stanza_pp);
+  if (!*msg_stanza_pp) {
+    goto cleanup;
+  }
+
   if (!recipient_dl_p) {
-    ret_val = axc_session_exists_any(to, axc_ctx_p);
+    ret_val = axc_session_exists_any(recipient, axc_ctx_p);
     if (ret_val < 0) {
-      err_msg_dbg = g_strdup_printf("failed to check if session exists for %s in %s's db\n", to, uname);
+      err_msg_dbg = g_strdup_printf("failed to check if session exists for %s in %s's db\n", recipient, uname);
       goto cleanup;
     } else if (ret_val == 1) {
       // Nobody on the other side could read the message, so it must not be sent and look like it was delivered.
-      err_msg_dbg = g_strdup_printf("session exists for %s, but the devicelist is empty", to);
+      err_msg_dbg = g_strdup_printf("session exists for %s, but the devicelist is empty", recipient);
       purple_conv_present_error(recipient, purple_connection_get_account(gc_p), "Even though an encrypted session exists, the recipient's devicelist is empty. "
                                                                                 "The user probably uninstalled OMEMO, so you can add this conversation to the blacklist.");
       goto cleanup;
@@ -1327,23 +1337,25 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
     }
   }
 
-  ret_val = omemo_storage_user_devicelist_retrieve(uname, db_fn_omemo, &user_dl_p);
-  if (ret_val) {
-    err_msg_dbg = g_strdup_printf("failed to retrieve devicelist for %s", uname);
-    goto cleanup;
-  }
   free(tempxml);
   tempxml = (void *) 0;
   omemo_devicelist_export(user_dl_p, &tempxml);
   purple_debug_info("lurch", "retrieved own devicelist:\n%s\n", tempxml);
-  own_dl_p = omemo_devicelist_get_id_list(user_dl_p);
   if (!own_dl_p) {
     err_msg_dbg = g_strdup_printf("no own devicelist");
     goto cleanup;
   }
 
+  msg_xml = xmlnode_to_str(*msg_stanza_pp, &len);
+  ret_val = omemo_message_prepare_encryption(msg_xml, own_id, &crypto, OMEMO_STRIP_ALL, &msg_p);
+  g_free(msg_xml);
+  if (ret_val) {
+    err_msg_dbg = g_strdup_printf("failed to construct omemo message");
+    goto cleanup;
+  }
+
   addr_l_p = lurch_addr_list_add(addr_l_p, user_dl_p, &own_id);
-  if (g_strcmp0(uname, to)) {
+  if (g_strcmp0(uname, recipient)) {
     addr_l_p = lurch_addr_list_add(addr_l_p, dl_p, (void *) 0);
   }
 
@@ -1899,6 +1911,15 @@ static void lurch_xml_received_cb(PurpleConnection * gc_p, xmlnode ** stanza_pp)
   node_name = (*stanza_pp)->name;
 
   if (!g_strcmp0(node_name, "message")) {
+    temp_node_p = xmlnode_get_child_with_namespace(*stanza_pp, "encrypted", LURCH_NS_OM2);
+    if (temp_node_p) {
+      if (lurch_om2_message_receive(purple_connection_get_protocol_data(gc_p), stanza_pp)) {
+        return;
+      }
+      // the rest of the code does not expect there to be more than one
+      xmlnode_free(temp_node_p);
+    }
+
     temp_node_p = xmlnode_get_child(*stanza_pp, "encrypted");
     if (temp_node_p) {
       lurch_message_decrypt(gc_p, stanza_pp);
@@ -1941,8 +1962,11 @@ static int lurch_topic_update_im(PurpleConversation * conv_p) {
   ret_val = axc_session_exists_any(partner_name_bare, axc_ctx_p);
   if (ret_val < 0) {
     goto cleanup;
-  } else if (ret_val) {
+  } else if (ret_val || lurch_om2_contact_has_session(uname, partner_name_bare)) {
     new_title = g_strdup_printf("%s (%s)", partner_name, "OMEMO");
+
+  } else if (lurch_om2_contact_available(uname, partner_name_bare)) {
+    new_title = g_strdup_printf("%s (%s)", partner_name, "OMEMO available");
 
   } else {
     ret_val = omemo_storage_user_devicelist_retrieve(partner_name_bare, db_fn_omemo, &dl_p);
@@ -2015,6 +2039,7 @@ static void lurch_devicelist_request(PurpleConversation * conv_p) {
   bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
   if (bare_jid) {
     lurch_devicelist_fetch(purple_connection_get_protocol_data(purple_account_get_connection(acc_p)), bare_jid);
+    lurch_om2_devicelist_request(purple_connection_get_protocol_data(purple_account_get_connection(acc_p)), bare_jid);
   }
 
   g_free(bare_jid);
@@ -2093,6 +2118,7 @@ static gboolean lurch_plugin_load(PurplePlugin * plugin_p) {
   (void) purple_signal_connect_priority(jabber_handle_p, "jabber-sending-xmlnode", plugin_p, PURPLE_CALLBACK(lurch_xml_sent_cb), NULL, PURPLE_PRIORITY_HIGHEST - 100);
 
   jabber_pep_register_handler(dl_ns, lurch_pep_devicelist_event_handler);
+  lurch_om2_init();
   jabber_add_feature(dl_ns, jabber_pep_namespace_only_when_pep_enabled_cb);
 
   // manually call init code if there are already accounts connected, e.g. when plugin is loaded manually

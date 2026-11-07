@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- [OMEMO 2](https://xmpp.org/extensions/xep-0384.html) (`urn:xmpp:omemo:2`) for one-on-one conversations with devices that exclusively use it. It shares the device ID and identity key with the existing version. Group chats still only use the existing version.
+- `/lurch omemo2 status|show|reset` for the OMEMO 2 devices and fingerprints, and for replacing sessions.
+
 ### Fixed
 - Updated _libomemo_ submodule to `0.8.2`.
   This publishes PEP nodes for devicelist and bundle items with ID `current`, as recommended in the XEP, likely fixing some compatibility bugs such as the own device disappearing from the devicelist seen by other clients.

@@ -159,6 +159,18 @@ You can obtain it in the following way:
 * Copy the whole thing
 
 ## FAQ
+### Which version of OMEMO does it use?
+There are two versions in use today, which cannot talk to each other:
+
+* `eu.siacs.conversations.axolotl`, version 0.3 of the XEP. This is what most clients use, including _Conversations_, _Monal_, _Dino_, _Gajim_ and _Profanity_.
+* `urn:xmpp:omemo:2`, the current version of the XEP, which is still marked as experimental. It is used by e.g. _Kaidan_.
+
+_lurch_ implements both for one-on-one conversations, and is the same device with the same fingerprint in both. A device that is on the devicelist of the old version gets that one, and just the devices which exclusively use the new version get it. If a contact has both kinds, each kind gets its own stanza. Group chats are limited to the old version.
+
+Unlike the old version, which trusts every key it sees, OMEMO 2 remembers the first key of a device and refuses it if it changes. Check the fingerprints using `/lurch omemo2 status`. If a key changed for a good reason, you can accept it using `/lurch omemo2 reset`.
+
+The implementation of OMEMO 2 has not been audited. It needs _libgcrypt_ 1.9 or newer.
+
 ### Can it talk to other OMEMO clients?
 __Yes__, it was (briefly) tested with:
 * [Conversations](https://conversations.im/) (Android)
