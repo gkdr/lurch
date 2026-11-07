@@ -655,6 +655,11 @@ static void lurch_pep_bundle_for_keytransport(JabberStream * js_p, const char * 
   xmlnode * msg_node_p = (void *) 0;
   void * jabber_handle_p = purple_plugins_find_with_id("prpl-jabber");
 
+  if (!from || !items_p) {
+    purple_debug_warning("lurch", "%s: could not get the bundle needed for answering with a keytransport message\n", __func__);
+    return;
+  }
+
   uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
 
   addr.name = from;
@@ -1500,8 +1505,15 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     recipient_bare_jid = jabber_get_bare_jid(to);
   }
 
-  if (!g_strcmp0(type, "chat")) {
-    sender = jabber_get_bare_jid(from);
+  // A missing type means "normal", which is what e.g. python-omemo uses for its empty messages. Everything else that is
+  // not a groupchat message cannot be meant for us: errors for instance just bounce our own encrypted message back.
+  if (!type || !g_strcmp0(type, "chat") || !g_strcmp0(type, "normal")) {
+    // without a sender, the message comes from the own account
+    sender = from ? jabber_get_bare_jid(from) : g_strdup(uname);
+    if (!sender) {
+      purple_debug_warning("lurch", "%s: ignoring encrypted message with invalid sender\n", __func__);
+      goto cleanup;
+    }
 
     ret_val = omemo_storage_chatlist_exists(sender, db_fn_omemo);
     if (ret_val < 0) {
@@ -1511,9 +1523,19 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
       purple_conv_present_error(sender, purple_connection_get_account(gc_p), "Received encrypted message in blacklisted conversation.");
     }
   } else if (!g_strcmp0(type, "groupchat")) {
+    if (!from) {
+      purple_debug_warning("lurch", "%s: ignoring encrypted groupchat message without a sender\n", __func__);
+      goto cleanup;
+    }
+
     split = g_strsplit(from, "/", 2);
     room_name = split[0];
     buddy_nick = split[1];
+
+    if (!buddy_nick) {
+      purple_debug_warning("lurch", "%s: ignoring encrypted message sent by the room %s itself\n", __func__, room_name);
+      goto cleanup;
+    }
 
     ret_val = omemo_storage_chatlist_exists(room_name, db_fn_omemo);
     if (ret_val < 0) {
@@ -1547,6 +1569,13 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     }
 
     sender = jabber_get_bare_jid(muc_member_p->jid);
+    if (!sender) {
+      err_msg_dbg = g_strdup_printf("invalid jid for user %s in muc %s", buddy_nick, room_name);
+      goto cleanup;
+    }
+  } else {
+    purple_debug_info("lurch", "%s: ignoring encrypted message of type %s\n", __func__, type);
+    goto cleanup;
   }
   xml = xmlnode_to_str(*msg_stanza_pp, &len);
   ret_val = omemo_message_prepare_decryption(xml, &msg_p);
