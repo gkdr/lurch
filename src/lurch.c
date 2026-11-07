@@ -975,8 +975,14 @@ static void lurch_pep_devicelist_event_handler(JabberStream * js_p, const char *
   char * uname = (void *) 0;
   omemo_devicelist * dl_in_p = (void *) 0;
 
+  if (!items_p) {
+    // an explicit request failed, e.g. because the contact does not use OMEMO, which says nothing new about the devices
+    purple_debug_info("lurch", "%s: no devicelist available from %s\n", __func__, from ? from : "(unknown)");
+    goto cleanup;
+  }
+
   uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
-  if (!strncmp(uname, from, strnlen(uname, JABBER_MAX_LEN_BARE))) {
+  if (!g_strcmp0(uname, from)) {
     //own devicelist is dealt with in own handler
     lurch_pep_own_devicelist_request_handler(js_p, from, items_p);
     goto cleanup;
@@ -1892,12 +1898,41 @@ cleanup:
   return ret_val;
 }
 
+/**
+ * Asks for the devicelist of a conversation partner.
+ * PEP notifications only arrive with a presence subscription, without one the contact would look like a non-OMEMO user.
+ */
+static void lurch_devicelist_request(PurpleConversation * conv_p) {
+  PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
+  char * bare_jid = (void *) 0;
+  char * dl_ns = (void *) 0;
+
+  if (!purple_account_is_connected(acc_p)) {
+    return;
+  }
+
+  if (omemo_devicelist_get_pep_node_name(&dl_ns)) {
+    purple_debug_error("lurch", "%s: failed to get devicelist pep node name\n", __func__);
+    return;
+  }
+
+  bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
+  if (bare_jid) {
+    jabber_pep_request_item(purple_connection_get_protocol_data(purple_account_get_connection(acc_p)),
+                            bare_jid, dl_ns, (void *) 0, lurch_pep_devicelist_event_handler);
+  }
+
+  g_free(bare_jid);
+  free(dl_ns);
+}
+
 static void lurch_conv_created_cb(PurpleConversation * conv_p) {
   if (strncmp(purple_account_get_protocol_id(purple_conversation_get_account(conv_p)), JABBER_PROTOCOL_ID, strlen(JABBER_PROTOCOL_ID))) {
     return;
   }
 
   if (purple_conversation_get_type(conv_p) == PURPLE_CONV_TYPE_IM) {
+    lurch_devicelist_request(conv_p);
     lurch_topic_update_im(conv_p);
   } else if (purple_conversation_get_type(conv_p) == PURPLE_CONV_TYPE_CHAT) {
     lurch_topic_update_chat(conv_p);
