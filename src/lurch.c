@@ -1218,8 +1218,11 @@ static void lurch_message_encrypt_im(PurpleConnection * gc_p, xmlnode ** msg_sta
       err_msg_dbg = g_strdup_printf("failed to check if session exists for %s in %s's db\n", to, uname);
       goto cleanup;
     } else if (ret_val == 1) {
-      purple_conv_present_error(recipient, purple_connection_get_account(gc_p), "Even though an encrypted session exists, the recipient's devicelist is empty."
+      // Nobody on the other side could read the message, so it must not be sent and look like it was delivered.
+      err_msg_dbg = g_strdup_printf("session exists for %s, but the devicelist is empty", to);
+      purple_conv_present_error(recipient, purple_connection_get_account(gc_p), "Even though an encrypted session exists, the recipient's devicelist is empty. "
                                                                                 "The user probably uninstalled OMEMO, so you can add this conversation to the blacklist.");
+      goto cleanup;
     } else {
       goto cleanup;
     }
