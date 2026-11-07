@@ -1,5 +1,9 @@
 #pragma once
 
+#include <purple.h>
+
+#include "jabber.h"
+
 #include "axc.h"
 
 #define JABBER_PROTOCOL_ID "prpl-jabber"
@@ -65,3 +69,20 @@ char * lurch_util_fp_get_printable(axc_buf * key_buf_p);
  * @param ctx_p	the axc context
  */
 void lurch_util_axc_log_func(int level, const char * msg, size_t len, void * user_data);
+
+/**
+ * Publishes an OMEMO PEP item, so that it can be fetched by anyone.
+ *
+ * Use this instead of jabber_pep_publish(), which silently drops the item unless the PEP identity is advertised
+ * on the server's JID. XEP-0163 puts it on the account's JID, which is where e.g. Prosody has it.
+ *
+ * Asks for the 'open' access model using publish-options. If an existing node is configured differently, it is
+ * reconfigured and the publish retried. If that still fails, e.g. because the server does not implement
+ * publish-options, the item is published without options as a last resort.
+ *
+ * The result is only known later, and is logged.
+ *
+ * @param js_p The JabberStream to use.
+ * @param publish_node_p The <publish> node. Ownership is taken, also on failure. Its <item> will get the ID "current".
+ */
+void lurch_util_pep_publish(JabberStream * js_p, xmlnode * publish_node_p);

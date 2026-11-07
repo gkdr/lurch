@@ -283,9 +283,9 @@ static int lurch_bundle_publish_own(JabberStream * js_p) {
   }
 
   publish_node_bundle_p = xmlnode_from_str(bundle_xml, -1);
-  jabber_pep_publish(js_p, publish_node_bundle_p);
+  lurch_util_pep_publish(js_p, publish_node_bundle_p);
 
-  purple_debug_info("lurch", "%s: published own bundle for %s\n", __func__, uname);
+  purple_debug_info("lurch", "%s: sent own bundle for %s\n", __func__, uname);
 
 cleanup:
   if (err_msg_dbg) {
@@ -934,7 +934,7 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
     }
 
     publish_node_dl_p = xmlnode_from_str(dl_xml, -1);
-    jabber_pep_publish(js_p, publish_node_dl_p);
+    lurch_util_pep_publish(js_p, publish_node_dl_p);
 
     purple_debug_info("lurch", "%s: \n%s:\n", __func__, "...done");
   }

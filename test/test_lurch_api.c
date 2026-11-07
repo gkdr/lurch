@@ -83,7 +83,7 @@ PurpleConversation * __wrap_purple_find_conversation_with_account(PurpleConversa
     return ret_val;
 }
 
-void __wrap_jabber_pep_publish(JabberStream * js_p, xmlnode * publish_node_p) {
+void __wrap_lurch_util_pep_publish(JabberStream * js_p, xmlnode * publish_node_p) {
     xmlnode * item_node_p = xmlnode_get_child(publish_node_p, "item");
     xmlnode * list_node_p = xmlnode_get_child(item_node_p, "list");
 
@@ -295,8 +295,8 @@ static void test_lurch_api_id_remove_handler(void ** state) {
 
     expect_function_call(__wrap_purple_account_get_connection);
     will_return(__wrap_purple_connection_get_protocol_data, NULL);
-    expect_string(__wrap_jabber_pep_publish, device_id, "4223");
-    expect_value(__wrap_jabber_pep_publish, device_node_p->next, NULL);
+    expect_string(__wrap_lurch_util_pep_publish, device_id, "4223");
+    expect_value(__wrap_lurch_util_pep_publish, device_node_p->next, NULL);
 
     char * test_user_data = "TEST USER DATA";
     expect_value(lurch_api_id_remove_handler_cb_mock, err, EXIT_SUCCESS);

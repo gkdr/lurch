@@ -1,9 +1,150 @@
 #include <string.h>
 #include <purple.h>
 
+#include "iq.h"
+#include "jabber.h"
+
 #include "axc.h"
 
 #include "lurch_util.h"
+
+#define PUBSUB_XMLNS        "http://jabber.org/protocol/pubsub"
+#define PUBSUB_OWNER_XMLNS  PUBSUB_XMLNS "#owner"
+#define PUBSUB_ERRORS_XMLNS PUBSUB_XMLNS "#errors"
+#define FORM_TYPE_PUBLISH   PUBSUB_XMLNS "#publish-options"
+#define FORM_TYPE_NODE_CONF PUBSUB_XMLNS "#node_config"
+
+typedef enum {
+  LURCH_PEP_PUBLISH_FIRST_TRY,   // with options, node might be configured differently
+  LURCH_PEP_PUBLISH_RECONFIGURED,// with options, after an attempt to reconfigure the node
+  LURCH_PEP_PUBLISH_NO_OPTIONS   // last resort
+} lurch_pep_publish_stage;
+
+typedef struct {
+  xmlnode * publish_node_p;
+  lurch_pep_publish_stage stage;
+} lurch_pep_publish_state;
+
+static void lurch_pep_publish_send(JabberStream * js_p, lurch_pep_publish_state * state_p);
+
+static void lurch_pep_publish_state_destroy(lurch_pep_publish_state * state_p) {
+  xmlnode_free(state_p->publish_node_p);
+  g_free(state_p);
+}
+
+/**
+ * Creates a filled out data form requesting the 'open' access model.
+ */
+static xmlnode * lurch_pep_open_access_form_create(const char * form_type) {
+  xmlnode * form_p = xmlnode_new("x");
+  xmlnode_set_namespace(form_p, "jabber:x:data");
+  xmlnode_set_attrib(form_p, "type", "submit");
+
+  xmlnode * field_p = xmlnode_new_child(form_p, "field");
+  xmlnode_set_attrib(field_p, "var", "FORM_TYPE");
+  xmlnode_set_attrib(field_p, "type", "hidden");
+  xmlnode_insert_data(xmlnode_new_child(field_p, "value"), form_type, -1);
+
+  field_p = xmlnode_new_child(form_p, "field");
+  xmlnode_set_attrib(field_p, "var", "pubsub#access_model");
+  xmlnode_insert_data(xmlnode_new_child(field_p, "value"), "open", -1);
+
+  return form_p;
+}
+
+/**
+ * Failing to reconfigure is not final as the publish might work anyway, so just go on with the next attempt.
+ */
+static void lurch_pep_reconfigure_cb(JabberStream * js_p, const char * from, JabberIqType type, const char * id, xmlnode * packet_p, gpointer data_p) {
+  lurch_pep_publish_state * state_p = data_p;
+  (void) from;
+  (void) id;
+  (void) packet_p;
+
+  if (type != JABBER_IQ_RESULT) {
+    purple_debug_warning("lurch", "%s: failed to reconfigure node %s\n", __func__, xmlnode_get_attrib(state_p->publish_node_p, "node"));
+  }
+
+  state_p->stage = LURCH_PEP_PUBLISH_RECONFIGURED;
+  lurch_pep_publish_send(js_p, state_p);
+}
+
+static void lurch_pep_reconfigure_send(JabberStream * js_p, lurch_pep_publish_state * state_p) {
+  JabberIq * jiq_p = jabber_iq_new(js_p, JABBER_IQ_SET);
+
+  xmlnode * pubsub_node_p = xmlnode_new_child(jiq_p->node, "pubsub");
+  xmlnode_set_namespace(pubsub_node_p, PUBSUB_OWNER_XMLNS);
+
+  xmlnode * configure_node_p = xmlnode_new_child(pubsub_node_p, "configure");
+  xmlnode_set_attrib(configure_node_p, "node", xmlnode_get_attrib(state_p->publish_node_p, "node"));
+  xmlnode_insert_child(configure_node_p, lurch_pep_open_access_form_create(FORM_TYPE_NODE_CONF));
+
+  jabber_iq_set_callback(jiq_p, lurch_pep_reconfigure_cb, state_p);
+  jabber_iq_send(jiq_p);
+}
+
+static void lurch_pep_publish_cb(JabberStream * js_p, const char * from, JabberIqType type, const char * id, xmlnode * packet_p, gpointer data_p) {
+  lurch_pep_publish_state * state_p = data_p;
+  const char * node_name = xmlnode_get_attrib(state_p->publish_node_p, "node");
+  (void) from;
+  (void) id;
+
+  if (type == JABBER_IQ_RESULT) {
+    purple_debug_info("lurch", "%s: published to node %s\n", __func__, node_name);
+    lurch_pep_publish_state_destroy(state_p);
+    return;
+  }
+
+  xmlnode * error_node_p = xmlnode_get_child(packet_p, "error");
+  gboolean precondition_not_met = error_node_p
+                                  && xmlnode_get_child_with_namespace(error_node_p, "precondition-not-met", PUBSUB_ERRORS_XMLNS);
+
+  if (state_p->stage == LURCH_PEP_PUBLISH_FIRST_TRY && precondition_not_met) {
+    purple_debug_info("lurch", "%s: node %s is configured differently, reconfiguring it\n", __func__, node_name);
+    lurch_pep_reconfigure_send(js_p, state_p);
+    return;
+  }
+
+  if (state_p->stage != LURCH_PEP_PUBLISH_NO_OPTIONS) {
+    purple_debug_warning("lurch", "%s: publishing to node %s with the open access model failed, contacts might not be able to access it\n", __func__, node_name);
+    state_p->stage = LURCH_PEP_PUBLISH_NO_OPTIONS;
+    lurch_pep_publish_send(js_p, state_p);
+    return;
+  }
+
+  purple_debug_error("lurch", "%s: failed to publish to node %s\n", __func__, node_name);
+  lurch_pep_publish_state_destroy(state_p);
+}
+
+static void lurch_pep_publish_send(JabberStream * js_p, lurch_pep_publish_state * state_p) {
+  JabberIq * jiq_p = jabber_iq_new(js_p, JABBER_IQ_SET);
+
+  xmlnode * pubsub_node_p = xmlnode_new_child(jiq_p->node, "pubsub");
+  xmlnode_set_namespace(pubsub_node_p, PUBSUB_XMLNS);
+
+  xmlnode_insert_child(pubsub_node_p, xmlnode_copy(state_p->publish_node_p));
+
+  if (state_p->stage != LURCH_PEP_PUBLISH_NO_OPTIONS) {
+    xmlnode * options_node_p = xmlnode_new_child(pubsub_node_p, "publish-options");
+    xmlnode_insert_child(options_node_p, lurch_pep_open_access_form_create(FORM_TYPE_PUBLISH));
+  }
+
+  jabber_iq_set_callback(jiq_p, lurch_pep_publish_cb, state_p);
+  jabber_iq_send(jiq_p);
+}
+
+void lurch_util_pep_publish(JabberStream * js_p, xmlnode * publish_node_p) {
+  xmlnode * item_node_p = xmlnode_get_child(publish_node_p, "item");
+  if (item_node_p) {
+    xmlnode_set_attrib(item_node_p, "id", "current");
+  }
+
+  lurch_pep_publish_state * state_p = g_new0(lurch_pep_publish_state, 1);
+  state_p->publish_node_p = publish_node_p;
+  state_p->stage = LURCH_PEP_PUBLISH_FIRST_TRY;
+
+  lurch_pep_publish_send(js_p, state_p);
+}
 
 void lurch_util_axc_log_func(int level, const char * msg, size_t len, void * user_data) {
   (void) len;
