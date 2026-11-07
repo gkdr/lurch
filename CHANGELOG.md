@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The vendored libomemo is rebuilt when its sources change.
 - Exposed `lurch_util_axc_log_func()` in the `.h` file so its unit tests can properly access it, fixing a new compile error.
 - Removed unused variable from `lurch_bundle_request_cb()`.
+- Crash on receiving an encrypted message that is not of type `chat`, e.g. without a type at all.
+- Silently not publishing the devicelist and bundle on servers that advertise PEP on the account's JID, like _Prosody_. ([#194](https://github.com/gkdr/lurch/issues/194))
+- Publish with the `open` access model and the item ID `current`, so that users without a presence subscription can fetch the bundle.
+- Request the devicelist when a conversation is opened, instead of relying on PEP notifications which need a presence subscription.
+- Sending messages which were encrypted for no device at all, while displaying them as sent.
+- Mistaking the devicelist of a JID that merely starts with the own JID for the own one.
 
 
 ## [0.7.0] - 2021-02-12
