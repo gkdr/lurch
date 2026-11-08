@@ -841,14 +841,74 @@ cleanup:
 }
 
 /**
- * A JabberPEPHandler function.
- * Is used to handle the own devicelist and also perform install-time functions.
+ * Turns a devicelist <item> into the form omemo_devicelist_import() expects, keeping only valid device IDs, once each.
+ * libomemo stops at the first ID it cannot parse, so a single broken one would hide all devices after it.
+ *
+ * @param item_p The <item> element, or NULL for an empty list.
+ * @param dropped_p Will be set to TRUE if anything was dropped.
+ * @return The XML string. g_free() when done.
  */
-static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const char * from, xmlnode * items_p) {
+static char * lurch_devicelist_import_xml(xmlnode * item_p, gboolean * dropped_p) {
+  xmlnode * items_p = xmlnode_new("items");
+  xmlnode * list_p = item_p ? xmlnode_get_child(item_p, "list") : (void *) 0;
+  GHashTable * seen_p = g_hash_table_new(g_direct_hash, g_direct_equal);
+  int len = 0;
+
+  *dropped_p = FALSE;
+
+  if (item_p) {
+    xmlnode * new_item_p = xmlnode_new_child(items_p, "item");
+    xmlnode * new_list_p = xmlnode_new_child(new_item_p, "list");
+    xmlnode_set_namespace(new_list_p, xmlnode_get_namespace(list_p));
+
+    for (xmlnode * device_p = list_p ? xmlnode_get_child(list_p, "device") : (void *) 0; device_p; device_p = xmlnode_get_next_twin(device_p)) {
+      const char * id_str = xmlnode_get_attrib(device_p, "id");
+      guint64 id = 0;
+
+      if (!id_str || !g_ascii_string_to_unsigned(id_str, 10, 1, G_MAXUINT32, &id, (void *) 0)
+          || g_hash_table_contains(seen_p, GUINT_TO_POINTER((guint) id))) {
+        purple_debug_warning("lurch", "%s: dropping invalid or duplicate device ID '%s'\n", __func__, id_str ? id_str : "(none)");
+        *dropped_p = TRUE;
+        continue;
+      }
+      g_hash_table_add(seen_p, GUINT_TO_POINTER((guint) id));
+
+      char * clean_id = g_strdup_printf("%u", (guint) id);
+      xmlnode_set_attrib(xmlnode_new_child(new_list_p, "device"), "id", clean_id);
+      g_free(clean_id);
+    }
+  }
+
+  char * xml = xmlnode_to_str(items_p, &len);
+  g_hash_table_destroy(seen_p);
+  xmlnode_free(items_p);
+  return xml;
+}
+
+/**
+ * Removes all items but the given one from the own devicelist node, so that no client can read an outdated list.
+ */
+static void lurch_devicelist_retract_others(JabberStream * js_p, xmlnode * items_p, xmlnode * keep_p) {
+  for (xmlnode * item_p = xmlnode_get_child(items_p, "item"); item_p; item_p = xmlnode_get_next_twin(item_p)) {
+    const char * id = xmlnode_get_attrib(item_p, "id");
+    if (item_p == keep_p || !id) {
+      continue;
+    }
+
+    purple_debug_info("lurch", "%s: retracting outdated item %s\n", __func__, id);
+    lurch_util_pep_retract(js_p, xmlnode_get_attrib(items_p, "node"), id);
+  }
+}
+
+/**
+ * Handles the own devicelist and also performs install-time functions.
+ *
+ * @param items_p The <items> element, or NULL if there is no devicelist yet.
+ */
+static void lurch_own_devicelist_received(JabberStream * js_p, xmlnode * items_p) {
   int ret_val = 0;
   char * err_msg_dbg = (void *) 0;
   char * tempxml = (void *) 0;
-  int len = 0;
   PurpleAccount * acc_p = (void *) 0;
   char * uname = (void *) 0;
   axc_context * axc_ctx_p = (void *) 0;
@@ -896,7 +956,15 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
     }
   } else {
     purple_debug_info("lurch", "%s: %s\n", __func__, "comparing received devicelist with cached one");
-    tempxml = xmlnode_to_str(items_p, &len);
+    xmlnode * item_p = lurch_util_pep_item_current(items_p);
+    gboolean is_current = item_p && !g_strcmp0(xmlnode_get_attrib(item_p, "id"), "current");
+    gboolean dropped = FALSE;
+
+    if (is_current && !uninstall) {
+      lurch_devicelist_retract_others(js_p, items_p, item_p);
+    }
+
+    tempxml = lurch_devicelist_import_xml(item_p, &dropped);
     ret_val = omemo_devicelist_import(tempxml, uname, &dl_p);
     if (ret_val) {
       err_msg_dbg = g_strdup_printf("failed to import received devicelist");
@@ -904,7 +972,10 @@ static void lurch_pep_own_devicelist_request_handler(JabberStream * js_p, const 
     }
 
     ret_val = omemo_devicelist_contains_id(dl_p, own_id);
-    if (ret_val == 1) {
+    if (ret_val == 1 && (dropped || (item_p && !is_current)) && !uninstall) {
+      // other clients only read the "current" item, and might not cope with invalid entries
+      purple_debug_info("lurch", "%s: %s\n", __func__, "republishing the devicelist as a clean \"current\" item");
+    } else if (ret_val == 1) {
       purple_debug_info("lurch", "%s: %s\n", __func__, "own id was already contained in received devicelist, doing nothing");
       needs_publishing = 0;
     } else if (ret_val == 0) {
@@ -963,34 +1034,64 @@ cleanup:
   free(dl_xml);
 }
 
+static void lurch_pep_devicelist_fetched_handler(JabberStream * js_p, const char * from, xmlnode * items_p);
+
 /**
- * A JabberPEPHandler function.
- * On receiving a devicelist PEP updates the database entry.
+ * Requests all items of someone's devicelist node, so that the "current" one can be used.
  */
-static void lurch_pep_devicelist_event_handler(JabberStream * js_p, const char * from, xmlnode * items_p) {
+static void lurch_devicelist_fetch(JabberStream * js_p, const char * bare_jid) {
+  char * dl_ns = (void *) 0;
+
+  if (omemo_devicelist_get_pep_node_name(&dl_ns)) {
+    purple_debug_error("lurch", "%s: failed to get devicelist pep node name\n", __func__);
+    return;
+  }
+
+  lurch_util_pep_request_all_items(js_p, bare_jid, dl_ns, lurch_pep_devicelist_fetched_handler);
+  free(dl_ns);
+}
+
+/**
+ * Handles a received devicelist, both from notifications and from explicit requests.
+ *
+ * @param from The JID it is from. NULL means the own account, as servers omit it in responses from there.
+ * @param items_p The <items> element. NULL if the node does not exist, which is only the case for requests.
+ * @param is_event Whether it is a notification. These contain just the item that was published, which is not
+ *                 necessarily the one other clients use.
+ */
+static void lurch_devicelist_received(JabberStream * js_p, const char * from, xmlnode * items_p, gboolean is_event) {
   int ret_val = 0;
-  int len = 0;
   char * err_msg_dbg = (void *) 0;
   char * tempxml = (void *) 0;
-  char * uname = (void *) 0;
+  char * uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
   omemo_devicelist * dl_in_p = (void *) 0;
+  xmlnode * item_p = items_p ? xmlnode_get_child(items_p, "item") : (void *) 0;
+  gboolean dropped = FALSE;
 
-  if (!items_p) {
-    // an explicit request failed, e.g. because the contact does not use OMEMO, which says nothing new about the devices
-    purple_debug_info("lurch", "%s: no devicelist available from %s\n", __func__, from ? from : "(unknown)");
+  if (is_event && !item_p) {
+    // only retractions, e.g. of outdated items, which say nothing about the current list
     goto cleanup;
   }
 
-  uname = lurch_util_uname_strip(purple_account_get_username(purple_connection_get_account(js_p->gc)));
-  if (!g_strcmp0(uname, from)) {
-    //own devicelist is dealt with in own handler
-    lurch_pep_own_devicelist_request_handler(js_p, from, items_p);
+  if (is_event && g_strcmp0(xmlnode_get_attrib(item_p, "id"), "current")) {
+    purple_debug_info("lurch", "%s: devicelist update from %s is not the \"current\" item, fetching all items\n", __func__, from);
+    lurch_devicelist_fetch(js_p, from);
+    goto cleanup;
+  }
+
+  if (!from || !g_strcmp0(uname, from)) {
+    lurch_own_devicelist_received(js_p, items_p);
+    goto cleanup;
+  }
+
+  if (!items_p) {
+    purple_debug_info("lurch", "%s: %s has no devicelist\n", __func__, from);
     goto cleanup;
   }
 
   purple_debug_info("lurch", "%s: %s received devicelist update from %s\n", __func__, uname, from);
 
-  tempxml = xmlnode_to_str(items_p, &len);
+  tempxml = lurch_devicelist_import_xml(lurch_util_pep_item_current(items_p), &dropped);
   ret_val = omemo_devicelist_import(tempxml, from, &dl_in_p);
   if (ret_val) {
     err_msg_dbg = g_strdup_printf("failed to import devicelist");
@@ -1014,17 +1115,26 @@ cleanup:
 }
 
 /**
+ * A JabberPEPHandler function for devicelist notifications.
+ */
+static void lurch_pep_devicelist_event_handler(JabberStream * js_p, const char * from, xmlnode * items_p) {
+  lurch_devicelist_received(js_p, from, items_p, TRUE);
+}
+
+/**
+ * A JabberPEPHandler function for the responses to lurch_devicelist_fetch().
+ */
+static void lurch_pep_devicelist_fetched_handler(JabberStream * js_p, const char * from, xmlnode * items_p) {
+  lurch_devicelist_received(js_p, from, items_p, FALSE);
+}
+
+/**
  * Set as callback for the "account connected" signal.
  * Requests the own devicelist, as that requires an active connection (as opposed to just registering PEP handlers).
  */
 static void lurch_account_connect_cb(PurpleAccount * acc_p) {
-  int ret_val = 0;
-
-  JabberStream * js_p = (void *) 0;
+  JabberStream * js_p = purple_connection_get_protocol_data(purple_account_get_connection(acc_p));
   char * uname = (void *) 0;
-  char * dl_ns = (void *) 0;
-
-  js_p = purple_connection_get_protocol_data(purple_account_get_connection(acc_p));
 
   if (strncmp(purple_account_get_protocol_id(acc_p), JABBER_PROTOCOL_ID, strlen(JABBER_PROTOCOL_ID))) {
     return;
@@ -1033,20 +1143,9 @@ static void lurch_account_connect_cb(PurpleAccount * acc_p) {
   // remove unused account preferences
   purple_account_remove_setting(acc_p, "lurch_initialised");
 
-  ret_val = omemo_devicelist_get_pep_node_name(&dl_ns);
-  if (ret_val) {
-    purple_debug_error("lurch", "%s: %s (%i)\n", __func__, "failed to get devicelist pep node name", ret_val);
-    goto cleanup;
-  }
   uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
-  // XEP-0384 recommends the item ID 'current'; without an ID, libpurple asks for the newest item, which on a node with
-  // several items need not be the one other clients read. If 'current' doesn't exist yet, the handler publishes a new
-  // list and the other devices add themselves again when they get the notification.
-  jabber_pep_request_item(js_p, uname, dl_ns, "current", lurch_pep_own_devicelist_request_handler);
-
-cleanup:
+  lurch_devicelist_fetch(js_p, uname);
   g_free(uname);
-  free(dl_ns);
 }
 
 /**
@@ -1908,25 +2007,17 @@ cleanup:
 static void lurch_devicelist_request(PurpleConversation * conv_p) {
   PurpleAccount * acc_p = purple_conversation_get_account(conv_p);
   char * bare_jid = (void *) 0;
-  char * dl_ns = (void *) 0;
 
   if (!purple_account_is_connected(acc_p)) {
     return;
   }
 
-  if (omemo_devicelist_get_pep_node_name(&dl_ns)) {
-    purple_debug_error("lurch", "%s: failed to get devicelist pep node name\n", __func__);
-    return;
-  }
-
   bare_jid = jabber_get_bare_jid(purple_conversation_get_name(conv_p));
   if (bare_jid) {
-    jabber_pep_request_item(purple_connection_get_protocol_data(purple_account_get_connection(acc_p)),
-                            bare_jid, dl_ns, (void *) 0, lurch_pep_devicelist_event_handler);
+    lurch_devicelist_fetch(purple_connection_get_protocol_data(purple_account_get_connection(acc_p)), bare_jid);
   }
 
   g_free(bare_jid);
-  free(dl_ns);
 }
 
 static void lurch_conv_created_cb(PurpleConversation * conv_p) {

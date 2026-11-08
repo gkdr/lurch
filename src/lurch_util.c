@@ -11,6 +11,7 @@
 #define PUBSUB_XMLNS        "http://jabber.org/protocol/pubsub"
 #define PUBSUB_OWNER_XMLNS  PUBSUB_XMLNS "#owner"
 #define PUBSUB_ERRORS_XMLNS PUBSUB_XMLNS "#errors"
+#define STANZA_ERRORS_XMLNS "urn:ietf:params:xml:ns:xmpp-stanzas"
 #define FORM_TYPE_PUBLISH   PUBSUB_XMLNS "#publish-options"
 #define FORM_TYPE_NODE_CONF PUBSUB_XMLNS "#node_config"
 
@@ -144,6 +145,66 @@ void lurch_util_pep_publish(JabberStream * js_p, xmlnode * publish_node_p) {
   state_p->stage = LURCH_PEP_PUBLISH_FIRST_TRY;
 
   lurch_pep_publish_send(js_p, state_p);
+}
+
+typedef struct {
+  JabberPEPHandler * cb;
+} lurch_pep_request_state;
+
+static void lurch_pep_request_all_items_cb(JabberStream * js_p, const char * from, JabberIqType type, const char * id, xmlnode * packet_p, gpointer data_p) {
+  lurch_pep_request_state * state_p = data_p;
+  xmlnode * pubsub_p = xmlnode_get_child_with_namespace(packet_p, "pubsub", PUBSUB_XMLNS);
+  xmlnode * error_p = xmlnode_get_child(packet_p, "error");
+  (void) id;
+
+  if (type == JABBER_IQ_RESULT && pubsub_p) {
+    state_p->cb(js_p, from, xmlnode_get_child(pubsub_p, "items"));
+  } else if (error_p && xmlnode_get_child_with_namespace(error_p, "item-not-found", STANZA_ERRORS_XMLNS)) {
+    state_p->cb(js_p, from, (void *) 0);
+  } else {
+    // e.g. a timeout, or a node that is not accessible, which says nothing about whether it exists
+    purple_debug_info("lurch", "%s: could not get a node from %s\n", __func__, from ? from : "the own account");
+  }
+
+  g_free(state_p);
+}
+
+void lurch_util_pep_request_all_items(JabberStream * js_p, const char * to, const char * node, JabberPEPHandler * cb) {
+  lurch_pep_request_state * state_p = g_new0(lurch_pep_request_state, 1);
+  state_p->cb = cb;
+
+  JabberIq * jiq_p = jabber_iq_new(js_p, JABBER_IQ_GET);
+  xmlnode_set_attrib(jiq_p->node, "to", to);
+  xmlnode * pubsub_p = xmlnode_new_child(jiq_p->node, "pubsub");
+  xmlnode_set_namespace(pubsub_p, PUBSUB_XMLNS);
+  xmlnode_set_attrib(xmlnode_new_child(pubsub_p, "items"), "node", node);
+
+  jabber_iq_set_callback(jiq_p, lurch_pep_request_all_items_cb, state_p);
+  jabber_iq_send(jiq_p);
+}
+
+xmlnode * lurch_util_pep_item_current(xmlnode * items_p) {
+  xmlnode * last_p = (void *) 0;
+
+  for (xmlnode * item_p = xmlnode_get_child(items_p, "item"); item_p; item_p = xmlnode_get_next_twin(item_p)) {
+    if (!g_strcmp0(xmlnode_get_attrib(item_p, "id"), "current")) {
+      return item_p;
+    }
+    last_p = item_p;
+  }
+
+  return last_p;
+}
+
+void lurch_util_pep_retract(JabberStream * js_p, const char * node, const char * item_id) {
+  JabberIq * jiq_p = jabber_iq_new(js_p, JABBER_IQ_SET);
+  xmlnode * pubsub_p = xmlnode_new_child(jiq_p->node, "pubsub");
+  xmlnode_set_namespace(pubsub_p, PUBSUB_XMLNS);
+  xmlnode * retract_p = xmlnode_new_child(pubsub_p, "retract");
+  xmlnode_set_attrib(retract_p, "node", node);
+  xmlnode_set_attrib(xmlnode_new_child(retract_p, "item"), "id", item_id);
+
+  jabber_iq_send(jiq_p);
 }
 
 void lurch_util_axc_log_func(int level, const char * msg, size_t len, void * user_data) {
