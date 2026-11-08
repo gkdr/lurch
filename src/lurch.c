@@ -1613,8 +1613,8 @@ static void lurch_message_decrypt(PurpleConnection * gc_p, xmlnode ** msg_stanza
     recipient_bare_jid = jabber_get_bare_jid(to);
   }
 
-  // A missing type means "normal", which is what e.g. python-omemo uses for its empty messages. Everything else that is
-  // not a groupchat message cannot be meant for us: errors for instance just bounce our own encrypted message back.
+  // A missing type means "normal". Everything else that is not a groupchat message cannot be meant for us: errors for
+  // instance just bounce our own encrypted message back.
   if (!type || !g_strcmp0(type, "chat") || !g_strcmp0(type, "normal")) {
     // without a sender, the message comes from the own account
     sender = from ? jabber_get_bare_jid(from) : g_strdup(uname);
