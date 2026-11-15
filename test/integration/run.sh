@@ -2,13 +2,15 @@
 #
 # Integration test runner for lurch OMEMO plugin.
 #
-# Sets up a Prosody XMPP server in a container, creates test users,
-# builds and runs the test harness, then tears everything down.
+# Builds the test harness, then runs every scenario against its own
+# fresh Prosody container (and fresh client user dirs), so scenarios
+# never share server state. The scenario list comes from the harness
+# (`build/test_integration --list`).
 #
 # Usage:
-#   ./test/integration/run.sh
-#   CONTAINER_RT=podman ./test/integration/run.sh
-#   PURPLE_DEBUG=1 ./test/integration/run.sh
+#   make test-integration
+#   CONTAINER_RT=podman make test-integration
+#   PURPLE_DEBUG=1 make test-integration
 #
 set -euo pipefail
 
@@ -20,80 +22,112 @@ CONTAINER_NAME="lurch-test-prosody"
 PROSODY_IMAGE="docker.io/prosodyim/prosody@sha256:099ffd09b342e950aa435a010600316a637cb9be2c3d33717bf2181c85c76c1e"
 XMPP_PORT="${XMPP_PORT:-5222}"
 RT="${CONTAINER_RT:-docker}"
+HARNESS="$PROJECT_DIR/build/test_integration"
+DEVICELIST_NODE="eu.siacs.conversations.axolotl.devicelist"
 
-# ── cleanup ───────────────────────────────────────────────────────
-cleanup() {
-    echo ""
-    echo "Cleaning up..."
-    $RT rm -f "$CONTAINER_NAME" 2>/dev/null || true
-    rm -rf /tmp/lurch_integration_test
+# ── helpers ───────────────────────────────────────────────────────
+
+# Removes the container and the client user dirs.
+reset_env() {
+    $RT rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    rm -rf /tmp/lurch_integration_test /tmp/lurch_integration_test_dev2
 }
-trap cleanup EXIT
 
-# Remove any leftover container from a previous run
-$RT rm -f "$CONTAINER_NAME" 2>/dev/null || true
+# Runs one non-interactive prosodyctl shell command in the container.
+pshell() {
+    $RT exec "$CONTAINER_NAME" prosodyctl shell "$@"
+}
 
-# ── start prosody ─────────────────────────────────────────────────
-echo "Starting Prosody XMPP server..."
-$RT run -d \
-    --name "$CONTAINER_NAME" \
-    -p "${XMPP_PORT}:5222" \
-    -v "$SCRIPT_DIR/prosody.cfg.lua:/etc/prosody/prosody.cfg.lua:ro,z" \
-    -v "$SCRIPT_DIR/mod_pep_server_disco.lua:/etc/prosody/modules/mod_pep_server_disco.lua:ro,z" \
-    "$PROSODY_IMAGE"
+# Starts a fresh Prosody, waits for c2s, and creates users + rosters.
+start_prosody() {
+    reset_env
 
-# Wait for prosody to be ready
-echo -n "Waiting for Prosody to start"
-for i in $(seq 1 30); do
-    if $RT logs "$CONTAINER_NAME" 2>&1 | grep -q "Activated service 'c2s'"; then
-        echo " ready."
-        break
-    fi
-    echo -n "."
-    sleep 1
-    if [ "$i" -eq 30 ]; then
-        echo " TIMEOUT"
-        echo "Prosody failed to start. Logs:"
-        $RT logs "$CONTAINER_NAME"
-        exit 1
+    echo "Starting Prosody XMPP server..."
+    $RT run -d \
+        --name "$CONTAINER_NAME" \
+        -p "${XMPP_PORT}:5222" \
+        -v "$SCRIPT_DIR/prosody.cfg.lua:/etc/prosody/prosody.cfg.lua:ro,z" \
+        -v "$SCRIPT_DIR/mod_pep_server_disco.lua:/etc/prosody/modules/mod_pep_server_disco.lua:ro,z" \
+        "$PROSODY_IMAGE" >/dev/null
+
+    echo -n "Waiting for Prosody to start"
+    for i in $(seq 1 30); do
+        if $RT logs "$CONTAINER_NAME" 2>&1 | grep -q "Activated service 'c2s'"; then
+            echo " ready."
+            break
+        fi
+        echo -n "."
+        sleep 1
+        if [ "$i" -eq 30 ]; then
+            echo " TIMEOUT"
+            echo "Prosody failed to start. Logs:"
+            $RT logs "$CONTAINER_NAME"
+            return 1
+        fi
+    done
+
+    echo "Creating test users and rosters..."
+    $RT exec -i "$CONTAINER_NAME" prosodyctl shell >/dev/null <<'LUA'
+user:create("alice@localhost", "testpass_alice")
+user:create("bob@localhost", "testpass_bob")
+user:create("charlie@localhost", "testpass_charlie")
+roster:subscribe_both("alice@localhost", "bob@localhost")
+roster:subscribe_both("alice@localhost", "charlie@localhost")
+LUA
+    echo "Users and rosters configured."
+}
+
+# Prints the PEP state and filtered server log, for debugging.
+dump_server_state() {
+    echo ""
+    echo "=== Prosody PEP state ==="
+    for user in alice@localhost bob@localhost; do
+        echo "--- $user"
+        pshell pubsub list_nodes "$user" || true
+        pshell pubsub list_items "$user" "$DEVICELIST_NODE" || true
+    done
+
+    echo ""
+    echo "=== Prosody logs (filtered) ==="
+    $RT logs "$CONTAINER_NAME" 2>&1 \
+        | grep -iE "pep|pubsub|discard|notification|publish|subscribe" \
+        | grep -v "admin_shell" || true
+}
+
+trap reset_env EXIT
+
+# ── build ─────────────────────────────────────────────────────────
+echo "Building test harness..."
+cd "$PROJECT_DIR"
+make build/test_integration build/lurch.so build/carbons.so
+
+# ── pick scenarios ────────────────────────────────────────────────
+mapfile -t scenarios < <("$HARNESS" --list | cut -f1)
+
+# ── run ───────────────────────────────────────────────────────────
+failed=()
+for scenario in "${scenarios[@]}"; do
+    echo ""
+    echo "################ scenario: $scenario ################"
+    start_prosody
+
+    rc=0
+    LURCH_TEST_RT="$RT" LURCH_TEST_CONTAINER="$CONTAINER_NAME" \
+        "$HARNESS" --scenario "$scenario" ./build/lurch.so ./build/carbons.so || rc=$?
+
+    dump_server_state
+    reset_env
+
+    if [ "$rc" -ne 0 ]; then
+        failed+=("$scenario")
     fi
 done
 
-# ── create test users and set up mutual rosters ──────────────────
-echo "Creating test users and rosters..."
-$RT exec -i "$CONTAINER_NAME" prosodyctl shell <<'LUA'
-user:create("alice@localhost", "testpass_alice")
-user:create("bob@localhost", "testpass_bob")
-roster:subscribe_both("alice@localhost", "bob@localhost")
-LUA
-echo "Users and rosters configured."
-
-# ── build test harness ───────────────────────────────────────────
 echo ""
-echo "Building test harness..."
-cd "$PROJECT_DIR"
-make build/test_integration
-
-# ── run tests ────────────────────────────────────────────────────
-echo ""
-echo "Running integration tests..."
-echo ""
-
-exit_code=0
-./build/test_integration ./build/lurch.so || exit_code=$?
-
-echo ""
-echo "=== Prosody PEP state ==="
-$RT exec -i "$CONTAINER_NAME" prosodyctl shell <<'LUA' || true
-pubsub:list_nodes("bob@localhost")
-pubsub:list_items("bob@localhost", "eu.siacs.conversations.axolotl.devicelist")
-pubsub:get_item("bob@localhost", "eu.siacs.conversations.axolotl.devicelist", "current")
-pubsub:list_nodes("alice@localhost")
-pubsub:list_items("alice@localhost", "eu.siacs.conversations.axolotl.devicelist")
-LUA
-
-echo ""
-echo "=== Prosody logs (filtered) ==="
-$RT logs "$CONTAINER_NAME" 2>&1 | grep -iE "pep|pubsub|discard|notification|Sending notification|publish|subscribe" | grep -v "admin_shell" || true
-
-exit $exit_code
+echo "================ summary ================"
+echo "ran:    ${scenarios[*]}"
+if [ ${#failed[@]} -gt 0 ]; then
+    echo "failed: ${failed[*]}"
+    exit 1
+fi
+echo "all scenarios passed"

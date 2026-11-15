@@ -228,11 +228,24 @@ $(BDIR)/test_lurch_crypto: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(BDIR)/test_lur
 
 test: $(OBJECTS_W_COVERAGE) $(VENDOR_LIBS) $(TEST_TARGETS)
 
-$(BDIR)/test_integration: $(BDIR)/lurch.so $(TDIR)/integration/test_harness.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(TDIR)/integration/test_harness.c \
+CARBONS_DIR=$(TDIR)/integration/lib/carbons
+
+# Always recurse into the carbons submodule — its own Makefile is the
+# real dependency tracker, so a submodule update is picked up without
+# needing a manual clean of our build dir.
+carbons-build:
+	$(MAKE) -C "$(CARBONS_DIR)"
+
+$(BDIR)/carbons.so: carbons-build | $(BDIR)
+	cp $(CARBONS_DIR)/build/carbons.so $@
+
+INTEGRATION_SRCS=$(TDIR)/integration/test_harness.c $(TDIR)/integration/test_phases.c \
+	$(TDIR)/integration/test_server.c
+$(BDIR)/test_integration: $(BDIR)/lurch.so $(INTEGRATION_SRCS) $(TDIR)/integration/test_harness.h
+	$(CC) $(CFLAGS) $(CPPFLAGS) -I$(TDIR)/integration -I$(SDIR) $(INTEGRATION_SRCS) \
 		-o $@ $(LDFLAGS) -lpurple
 
-test-integration: $(BDIR)/test_integration $(BDIR)/lurch.so
+test-integration: $(BDIR)/test_integration $(BDIR)/lurch.so $(BDIR)/carbons.so
 	$(TDIR)/integration/run.sh
 
 coverage: test
@@ -246,5 +259,5 @@ clean-all: clean
 	$(MAKE) -C "$(LOMEMO_DIR)" clean
 	$(MAKE) -C "$(AXC_DIR)" clean-all
 
-.PHONY: clean clean-all install install-home tarball test test-integration coverage
+.PHONY: clean clean-all install install-home tarball test test-integration carbons-build coverage
 

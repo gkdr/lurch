@@ -4,3 +4,6 @@
 [submodule "lib/libomemo"]
 	path = lib/libomemo
 	url = ../libomemo
+[submodule "test/integration/lib/carbons"]
+	path = test/integration/lib/carbons
+	url = https://github.com/gkdr/carbons.git
