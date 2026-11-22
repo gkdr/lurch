@@ -18,6 +18,12 @@
  * The "devicelist-update" scenario brings bob's second device online
  * while alice is already connected, and checks that the resulting
  * devicelist update reaches alice live and that lurch acts on it.
+ *
+ * "devicelist-foreign-publish" and "devicelist-multi-item" have a
+ * Conversations-style client overwrite bob's devicelist behind lurch's
+ * back (raw IQs on bob's stream) and check that lurch puts its own ID
+ * back on the server, in the one 'current' item. They target the "own
+ * device ID disappears from the devicelist" bug report.
  */
 
 #include "test_harness.h"
@@ -484,6 +490,151 @@ static gboolean dl_update_start(gpointer data) {
 }
 
 /* ================================================================
+ * Phase: another client of bob's overwrites the devicelist
+ *
+ * Reproduction attempt for the "own device ID disappears from the
+ * server devicelist" bug. A Conversations-style client on bob's account
+ * publishes a devicelist that only lists its own device: item
+ * id='current' plus publish-options access_model=open, the way
+ * Conversations does it. lurch is supposed to see the notification,
+ * notice its own ID is missing, add it, and republish.
+ * ================================================================ */
+
+#define FOREIGN_DEVICE_ID 1234567u
+#define FOREIGN_TIMEOUT_MS 15000
+#define FOREIGN_POLL_MS    200
+
+static int foreign_waited_ms;
+static uint32_t foreign_bob_id;
+
+/* If non-zero, the foreign client's node reconfiguration also sets
+ * pubsub#max_items to this, so the node keeps several items (as on the
+ * bug reporter's server). Set by the entry phase. */
+static int foreign_max_items;
+
+/* Sends a raw XML string on the account's XMPP stream, bypassing
+ * lurch (which only touches message stanzas anyway). */
+static void send_raw(PurpleAccount *acc, const char *xml) {
+    PurpleConnection *gc = purple_account_get_connection(acc);
+    PurplePlugin *prpl = purple_find_prpl(purple_account_get_protocol_id(acc));
+    PurplePluginProtocolInfo *info = PURPLE_PLUGIN_PROTOCOL_INFO(prpl);
+
+    fprintf(stderr, "[harness] raw send as %s:\n%s\n",
+            purple_account_get_username(acc), xml);
+    info->send_raw(gc, xml, (int) strlen(xml));
+}
+
+/* Polls until alice gets a devicelist event from bob listing both
+ * lurch's device and the foreign one (i.e. lurch republished), then
+ * asserts what the server stores. On timeout the server assertion still
+ * runs, so the failure shows the server's actual state. */
+static gboolean foreign_poll(gpointer data) {
+    (void) data;
+
+    gboolean merged = alice_saw_bob_device(foreign_bob_id) &&
+                      alice_saw_bob_device(FOREIGN_DEVICE_ID);
+    if (!merged && foreign_waited_ms < FOREIGN_TIMEOUT_MS) {
+        foreign_waited_ms += FOREIGN_POLL_MS;
+        g_timeout_add(FOREIGN_POLL_MS, foreign_poll, NULL);
+        return FALSE;
+    }
+
+    if (merged) {
+        test_pass("foreign publish: lurch re-added its ID and republished");
+    } else {
+        char reason[160];
+        snprintf(reason, sizeof(reason),
+                 "%d devicelist event(s) from bob since the foreign publish, "
+                 "none listing both %u and %u",
+                 S.alice_bob_dl_events, foreign_bob_id, FOREIGN_DEVICE_ID);
+        test_fail("foreign publish: lurch re-added its ID and republished", reason);
+    }
+
+    uint32_t want[2] = { foreign_bob_id, FOREIGN_DEVICE_ID };
+    assert_server_devicelist("server: bob's devicelist lists lurch and the foreign device",
+                             "bob@" XMPP_SERVER, want, 2);
+
+    next_phase();
+    return FALSE;
+}
+
+/* Entry point: checks the starting state, then publishes the foreign
+ * devicelist as bob. */
+static gboolean foreign_publish_start(gpointer data) {
+    (void) data;
+    fprintf(stderr, "\n--- phase: foreign client overwrites bob's devicelist ---\n");
+
+    foreign_bob_id = own_device_id(S.bob);
+    assert_server_devicelist("server: bob's devicelist lists his one device before",
+                             "bob@" XMPP_SERVER, &foreign_bob_id, 1);
+
+    /* lurch created the node with the default (presence) access model,
+     * so this first publish fails with precondition-not-met. Like
+     * Conversations, the foreign client then reconfigures the node to
+     * access_model=open and publishes again. All three IQs go out
+     * back to back; the server handles them in order. */
+    char *max_items_field = foreign_max_items
+        ? g_strdup_printf("<field var='pubsub#max_items'><value>%d</value></field>",
+                          foreign_max_items)
+        : g_strdup("");
+    char *configure = g_strdup_printf(
+        "<iq type='set' id='lurch-test-foreign-configure'>"
+          "<pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>"
+            "<configure node='" OMEMO_NS ".devicelist'>"
+              "<x xmlns='jabber:x:data' type='submit'>"
+                "<field var='FORM_TYPE' type='hidden'>"
+                  "<value>http://jabber.org/protocol/pubsub#node_config</value>"
+                "</field>"
+                "<field var='pubsub#access_model'><value>open</value></field>"
+                "%s"
+              "</x>"
+            "</configure>"
+          "</pubsub>"
+        "</iq>", max_items_field);
+    g_free(max_items_field);
+
+    char *xml = g_strdup_printf(
+        "<iq type='set' id='lurch-test-foreign-publish'>"
+          "<pubsub xmlns='http://jabber.org/protocol/pubsub'>"
+            "<publish node='" OMEMO_NS ".devicelist'>"
+              "<item id='current'>"
+                "<list xmlns='" OMEMO_NS "'><device id='%u'/></list>"
+              "</item>"
+            "</publish>"
+            "<publish-options>"
+              "<x xmlns='jabber:x:data' type='submit'>"
+                "<field var='FORM_TYPE' type='hidden'>"
+                  "<value>http://jabber.org/protocol/pubsub#publish-options</value>"
+                "</field>"
+                "<field var='pubsub#access_model'><value>open</value></field>"
+              "</x>"
+            "</publish-options>"
+          "</pubsub>"
+        "</iq>", FOREIGN_DEVICE_ID);
+
+    /* Only events after this point count. */
+    S.alice_bob_dl_events = 0;
+    send_raw(S.bob, xml);
+    send_raw(S.bob, configure);
+    send_raw(S.bob, xml);
+    g_free(xml);
+    g_free(configure);
+
+    foreign_waited_ms = 0;
+    g_timeout_add(FOREIGN_POLL_MS, foreign_poll, NULL);
+    return FALSE;
+}
+
+/* Entry point for the multi-item variant: the node keeps up to 10
+ * items. Before lurch published with item ID 'current', its republish
+ * landed in a second item next to the foreign client's 'current' one,
+ * and clients disagreed about which list is bob's. */
+static gboolean foreign_publish_multi_start(gpointer data) {
+    foreign_max_items = 10;
+    return foreign_publish_start(data);
+}
+
+/* ================================================================
  * Phase: disable OMEMO via API
  * ================================================================ */
 
@@ -919,6 +1070,23 @@ static const PhaseFunc devicelist_update_phases[] = {
     multi_device_start,
 };
 
+/* Baseline message, then a Conversations-style client of bob's
+ * overwrites the devicelist without lurch's ID, then a message must
+ * still reach bob's lurch device. */
+static const PhaseFunc devicelist_foreign_phases[] = {
+    alice_bob_start,
+    foreign_publish_start,
+    alice_bob_start,
+};
+
+
+/* Same as above, but on a node that keeps several items. */
+static const PhaseFunc devicelist_multi_item_phases[] = {
+    alice_bob_start,
+    foreign_publish_multi_start,
+    alice_bob_start,
+};
+
 static const Scenario scenarios[] = {
     {
         .name = "smoke",
@@ -935,6 +1103,22 @@ static const Scenario scenarios[] = {
         .dev2 = DEV2_ON_DEMAND,
         .phases = devicelist_update_phases,
         .n_phases = G_N_ELEMENTS(devicelist_update_phases),
+    },
+    {
+        .name = "devicelist-foreign-publish",
+        .description = "a Conversations-style client publishes bob's devicelist "
+                       "without lurch's ID; lurch must re-add itself",
+        .dev2 = DEV2_NONE,
+        .phases = devicelist_foreign_phases,
+        .n_phases = G_N_ELEMENTS(devicelist_foreign_phases),
+    },
+    {
+        .name = "devicelist-multi-item",
+        .description = "like devicelist-foreign-publish, but the node keeps several "
+                       "items; there must still be one devicelist",
+        .dev2 = DEV2_NONE,
+        .phases = devicelist_multi_item_phases,
+        .n_phases = G_N_ELEMENTS(devicelist_multi_item_phases),
     },
 };
 

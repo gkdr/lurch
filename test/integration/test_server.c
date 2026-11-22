@@ -173,7 +173,8 @@ static gboolean ids_contain(GList *ids, uint32_t id) {
 }
 
 /* Asserts the server-side devicelist for bare_jid: exactly one item on
- * the node, listing exactly the expected IDs. An expected ID of 0 means
+ * the node, with ID 'current', listing exactly the expected IDs. An
+ * expected ID of 0 means
  * the caller couldn't find out the device's own ID, which counts as a
  * failure, not as "skip". */
 void assert_server_devicelist(const char *name, const char *bare_jid,
@@ -211,6 +212,18 @@ void assert_server_devicelist(const char *name, const char *bare_jid,
     }
 
     ServerItem *item = items->data;
+    /* XEP-0384 recommends the fixed item ID 'current', so that every
+     * publish overwrites the previous list. */
+    if (strcmp(item->id, "current") != 0) {
+        char *ids = format_ids(item->device_ids);
+        snprintf(reason, sizeof(reason), "item ID is '%s', expected 'current' (lists [%s])",
+                 item->id, ids);
+        g_free(ids);
+        test_fail(name, reason);
+        server_items_free(items);
+        return;
+    }
+
     gboolean match = (g_list_length(item->device_ids) == (guint) n);
     for (int i = 0; match && i < n; i++) {
         if (!ids_contain(item->device_ids, expected[i])) {

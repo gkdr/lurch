@@ -203,8 +203,8 @@ uint32_t own_device_id(PurpleAccount *acc);
  * stores rather than lurch's local cache of it. */
 int server_devicelist_items(const char *bare_jid, GList **items_out);
 void server_items_free(GList *items);
-/* Asserts that bare_jid's devicelist node holds exactly one item and
- * that it lists exactly the `n` IDs in `expected` (in any order). */
+/* Asserts that bare_jid's devicelist node holds exactly one item, with
+ * ID 'current', listing exactly the `n` IDs in `expected` (in any order). */
 void assert_server_devicelist(const char *name, const char *bare_jid,
                               const uint32_t *expected, int n);
 
