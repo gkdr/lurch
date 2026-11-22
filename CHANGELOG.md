@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- Expose `lurch_util_axc_log_func()` in the `.h` file so its unit tests can properly access it, fixing a new compile error.
-- Remove unused variable from `lurch_bundle_request_cb()`.
+- Updated _libomemo_ submodule to `0.8.2`.
+  This publishes PEP nodes for devicelist and bundle items with ID `current`, as recommended in the XEP, likely fixing some compatibility bugs such as the own device disappearing from the devicelist seen by other clients.
+- Relatedly, at login, the own devicelist is requested as the item `current` instead of the newest item, so lurch reads the same list as other clients.
+- The vendored libomemo is rebuilt when its sources change.
+- Exposed `lurch_util_axc_log_func()` in the `.h` file so its unit tests can properly access it, fixing a new compile error.
+- Removed unused variable from `lurch_bundle_request_cb()`.
 
 
 ## [0.7.0] - 2021-02-12

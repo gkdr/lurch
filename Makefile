@@ -141,7 +141,8 @@ $(AX_PATH):
 $(AXC_PATH):
 	$(MAKE) -C "$(AXC_DIR)" build/libaxc-nt.a
 
-$(LOMEMO_PATH):
+# depends on the sources so that changes in the submodule get rebuilt
+$(LOMEMO_PATH): $(wildcard $(LOMEMO_SRC)/*.c $(LOMEMO_SRC)/*.h)
 	$(MAKE) -C "$(LOMEMO_DIR)" build/libomemo-conversations.a
 
 $(BDIR)/%.o: $(SDIR)/%.c | $(BDIR)

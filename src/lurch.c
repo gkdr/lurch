@@ -1028,7 +1028,10 @@ static void lurch_account_connect_cb(PurpleAccount * acc_p) {
     goto cleanup;
   }
   uname = lurch_util_uname_strip(purple_account_get_username(acc_p));
-  jabber_pep_request_item(js_p, uname, dl_ns, (void *) 0, lurch_pep_own_devicelist_request_handler);
+  // XEP-0384 recommends the item ID 'current'; without an ID, libpurple asks for the newest item, which on a node with
+  // several items need not be the one other clients read. If 'current' doesn't exist yet, the handler publishes a new
+  // list and the other devices add themselves again when they get the notification.
+  jabber_pep_request_item(js_p, uname, dl_ns, "current", lurch_pep_own_devicelist_request_handler);
 
 cleanup:
   g_free(uname);
