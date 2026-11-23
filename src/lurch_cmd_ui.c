@@ -7,6 +7,7 @@
 
 #include "libomemo.h"
 #include "lurch_api.h"
+#include "lurch_om2.h"
 
 static void lurch_cmd_print(PurpleConversation * conv_p, const char * msg) {
   purple_conversation_write(conv_p, "lurch", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time((void *) 0));  
@@ -28,6 +29,10 @@ static void lurch_cmd_help(PurpleConversation * conv_p) {
     " - '/lurch fp show': Displays this device's key fingerprint.\n"
     " - '/lurch fp list': Displays the fingerprints of all your devices.\n"
     " - '/lurch fp contact': Displays the fingerprints of all of your conversation partner's devices.\n"
+    "\n"
+    " - '/lurch omemo2 status': Displays the OMEMO 2 devices and fingerprints of your conversation partner.\n"
+    " - '/lurch omemo2 show': Displays this device's ID and fingerprint.\n"
+    " - '/lurch omemo2 reset': Removes the OMEMO 2 sessions and known keys of your conversation partner.\n"
     "\n"
     " - '/lurch status': Shows the OMEMO status of this conversation from your point of view.\n"
     " - '/lurch help': Displays this message.";
@@ -332,6 +337,8 @@ PurpleCmdRet lurch_cmd_func(PurpleConversation * conv_p,
     lurch_cmd_id(conv_p, args[1], args[2]);
   } else if (!g_strcmp0(command, "fp")) {
     lurch_cmd_fp(conv_p, args[1]);
+  } else if (!g_strcmp0(command, "omemo2")) {
+    lurch_om2_cmd(conv_p, args[1]);
   } else if (!g_strcmp0(command, "status")) {
     lurch_cmd_status(conv_p);
   } else {

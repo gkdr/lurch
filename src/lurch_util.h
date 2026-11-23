@@ -1,5 +1,10 @@
 #pragma once
 
+#include <purple.h>
+
+#include "jabber.h"
+#include "pep.h"
+
 #include "axc.h"
 
 #define JABBER_PROTOCOL_ID "prpl-jabber"
@@ -65,3 +70,52 @@ char * lurch_util_fp_get_printable(axc_buf * key_buf_p);
  * @param ctx_p	the axc context
  */
 void lurch_util_axc_log_func(int level, const char * msg, size_t len, void * user_data);
+
+/**
+ * Publishes an OMEMO PEP item, so that it can be fetched by anyone.
+ *
+ * Use this instead of jabber_pep_publish(), which silently drops the item unless the PEP identity is advertised
+ * on the server's JID. XEP-0163 puts it on the account's JID, which is where e.g. Prosody has it.
+ *
+ * Asks for the 'open' access model using publish-options. If an existing node is configured differently, it is
+ * reconfigured and the publish retried. If that still fails, e.g. because the server does not implement
+ * publish-options, the item is published without options as a last resort.
+ *
+ * The result is only known later, and is logged.
+ *
+ * @param js_p The JabberStream to use.
+ * @param publish_node_p The <publish> node. Ownership is taken, also on failure. Its <item> will get the ID "current".
+ */
+void lurch_util_pep_publish(JabberStream * js_p, xmlnode * publish_node_p);
+
+/**
+ * Same as lurch_util_pep_publish(), but for a node with multiple items. Its <item> needs an ID, which is left as it is.
+ *
+ * @param js_p The JabberStream to use.
+ * @param publish_node_p The <publish> node. Ownership is taken, also on failure.
+ */
+void lurch_util_pep_publish_multi(JabberStream * js_p, xmlnode * publish_node_p);
+
+/**
+ * Requests all items of a PEP node, unlike jabber_pep_request_item(), which only asks for the newest one. That is not
+ * necessarily the one with the ID "current", if some client published with another ID.
+ *
+ * @param js_p The JabberStream to use.
+ * @param to The JID owning the node.
+ * @param node The node name.
+ * @param cb Called with the <items> element, or with NULL if the node does not exist. Not called on other errors, which
+ *           say nothing about the node.
+ */
+void lurch_util_pep_request_all_items(JabberStream * js_p, const char * to, const char * node, JabberPEPHandler * cb);
+
+/**
+ * @param items_p An <items> element.
+ * @return The <item> with the ID "current", which is the one clients publish and read. Without one, the last item,
+ *         which is the newest one. NULL if there is no item at all.
+ */
+xmlnode * lurch_util_pep_item_current(xmlnode * items_p);
+
+/**
+ * Removes an item from an own PEP node. The result is not checked.
+ */
+void lurch_util_pep_retract(JabberStream * js_p, const char * node, const char * item_id);

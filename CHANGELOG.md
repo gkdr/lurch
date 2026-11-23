@@ -6,13 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- [OMEMO 2](https://xmpp.org/extensions/xep-0384.html) (`urn:xmpp:omemo:2`) for one-on-one conversations with devices that exclusively use it. It shares the device ID and identity key with the existing version. Group chats still only use the existing version.
+- `/lurch omemo2 status|show|reset` for the OMEMO 2 devices and fingerprints, and for replacing sessions.
+
 ### Fixed
 - Updated _libomemo_ submodule to `0.8.2`.
   This publishes PEP nodes for devicelist and bundle items with ID `current`, as recommended in the XEP, likely fixing some compatibility bugs such as the own device disappearing from the devicelist seen by other clients.
-- Relatedly, at login, the own devicelist is requested as the item `current` instead of the newest item, so lurch reads the same list as other clients.
 - The vendored libomemo is rebuilt when its sources change.
 - Exposed `lurch_util_axc_log_func()` in the `.h` file so its unit tests can properly access it, fixing a new compile error.
 - Removed unused variable from `lurch_bundle_request_cb()`.
+- Crash on receiving an encrypted message that is not of type `chat`, e.g. without a type at all.
+- Silently not publishing the devicelist and bundle on servers that advertise PEP on the account's JID, like _Prosody_. ([#194](https://github.com/gkdr/lurch/issues/194))
+- Publish with the `open` access model and the item ID `current`, so that users without a presence subscription can fetch the bundle.
+- Request the devicelist when a conversation is opened, instead of relying on PEP notifications which need a presence subscription.
+- Sending messages which were encrypted for no device at all, while displaying them as sent.
+- Mistaking the devicelist of a JID that merely starts with the own JID for the own one.
+- Ignoring other devices of the own account when the devicelist node holds an outdated item next to the one with the ID `current`. All items are fetched now, the `current` one is used, and outdated ones on the own node are removed.
+- Hiding all devices after an invalid device ID, and republishing the own devicelist in an endless loop that added the own ID again every time. Invalid and duplicate IDs are dropped, and the own devicelist is republished once without them.
+- Publishing a devicelist with only the own device whenever requesting the own devicelist failed, e.g. with a timeout.
 
 
 ## [0.7.0] - 2021-02-12

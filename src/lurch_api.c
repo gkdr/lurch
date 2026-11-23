@@ -139,8 +139,7 @@ void lurch_api_id_remove_handler(PurpleAccount * acc_p, uint32_t device_id, void
   }
 
   publish_node_p = xmlnode_from_str(exported_devicelist, -1);
-  jabber_pep_publish(purple_connection_get_protocol_data(purple_account_get_connection(acc_p)), publish_node_p);
-  // publish_node_p will be freed by the jabber prpl
+  lurch_util_pep_publish(purple_connection_get_protocol_data(purple_account_get_connection(acc_p)), publish_node_p);
 
 cleanup:
   cb(ret_val, user_data_p);
